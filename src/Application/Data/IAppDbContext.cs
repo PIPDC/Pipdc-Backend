@@ -27,6 +27,7 @@ public interface IAppDbContext
     DbSet<DevelopmentUpdate> DevelopmentUpdates { get; }
     DbSet<DevelopmentProjectImage> DevelopmentProjectImages { get; }
     DbSet<DevelopmentTracking> DevelopmentTrackings { get; }
+    DbSet<IdempotencyRecord> IdempotencyRecords { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
