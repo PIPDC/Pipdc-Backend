@@ -160,7 +160,14 @@ public class AgentService(IAppDbContext dbContext, UserManager<AppUser> userMana
         agent.IsVerified = request.IsVerified;
         agent.UpdatedAt = DateTime.UtcNow;
 
-        await dbContext.SaveChangesAsync(ct);
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result<AgentDto>.Failure(Error.Concurrency());
+        }
 
         var propertyCount = await dbContext.Properties.CountAsync(p => p.AgentId == id, ct);
 
@@ -180,6 +187,10 @@ public class AgentService(IAppDbContext dbContext, UserManager<AppUser> userMana
         try
         {
             await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure(Error.Concurrency());
         }
         catch (DbUpdateException)
         {
@@ -203,7 +214,14 @@ public class AgentService(IAppDbContext dbContext, UserManager<AppUser> userMana
         agent.IsVerified = !agent.IsVerified;
         agent.UpdatedAt = DateTime.UtcNow;
 
-        await dbContext.SaveChangesAsync(ct);
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result<AgentDto>.Failure(Error.Concurrency());
+        }
 
         var propertyCount = await dbContext.Properties.CountAsync(p => p.AgentId == agentId, ct);
 

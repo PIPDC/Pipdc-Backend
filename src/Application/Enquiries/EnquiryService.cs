@@ -113,7 +113,14 @@ public class EnquiryService(
         if (!currentUserRoles.Contains(Roles.Admin) && enquiry.AgentReadAt is null)
         {
             enquiry.AgentReadAt = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync(ct);
+            try
+            {
+                await dbContext.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Best-effort read marker; a concurrent update is fine.
+            }
         }
 
         return Result<EnquiryDto>.Success(enquiry.ToDto());
@@ -223,7 +230,14 @@ public class EnquiryService(
         enquiry.Status = status;
         enquiry.UpdatedAt = DateTime.UtcNow;
 
-        await dbContext.SaveChangesAsync(ct);
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result<EnquiryDto>.Failure(Error.Concurrency());
+        }
 
         // Send status-change emails (best-effort, never fail the operation).
         await SendStatusChangeEmailsAsync(enquiry, status, ct);
@@ -244,7 +258,15 @@ public class EnquiryService(
             return Result.Failure(access.Error);
 
         dbContext.Enquiries.Remove(enquiry);
-        await dbContext.SaveChangesAsync(ct);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure(Error.Concurrency());
+        }
 
         return Result.Success();
     }

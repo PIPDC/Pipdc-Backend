@@ -39,5 +39,7 @@ public class AgentConfiguration : IEntityTypeConfiguration<Agent>
             .WithOne(u => u.Agent)
             .HasForeignKey<Agent>(a => a.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property<uint>("xmin").IsRowVersion();
     }
 }

@@ -108,5 +108,7 @@ public class PropertyConfiguration : IEntityTypeConfiguration<Property>
             .WithMany(l => l.Properties)
             .HasForeignKey(p => p.LocationId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Property<uint>("xmin").IsRowVersion();
     }
 }

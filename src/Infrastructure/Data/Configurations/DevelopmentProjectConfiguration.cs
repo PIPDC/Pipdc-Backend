@@ -60,5 +60,7 @@ public class DevelopmentProjectConfiguration : IEntityTypeConfiguration<Developm
             .WithMany(l => l.DevelopmentProjects)
             .HasForeignKey(p => p.LocationRefId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Property<uint>("xmin").IsRowVersion();
     }
 }
