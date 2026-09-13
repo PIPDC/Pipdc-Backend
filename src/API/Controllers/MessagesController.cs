@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.JsonWebTokens;
 using PIPDC.API.Extensions;
 using PIPDC.Application.Conversations;
+using PIPDC.Infrastructure.Idempotency;
 using PIPDC.Infrastructure.RateLimiting;
 
 namespace PIPDC.API.Controllers;
@@ -28,6 +29,7 @@ public class MessagesController(IMessageService messageService) : ControllerBase
     [HttpPost]
     [RequestSizeLimit(100_000)]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
+    [Idempotent]
     public async Task<IActionResult> Send(int conversationId, [FromBody] SendMessageRequest request, CancellationToken ct)
     {
         var result = await messageService.SendAsync(conversationId, request, CurrentUserId, ct);
@@ -41,6 +43,7 @@ public class MessagesController(IMessageService messageService) : ControllerBase
     [HttpPost("~/api/enquiries/{enquiryId:int}/messages")]
     [RequestSizeLimit(100_000)]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
+    [Idempotent]
     public async Task<IActionResult> SendByEnquiry(int enquiryId, [FromBody] SendMessageRequest request, CancellationToken ct)
     {
         var result = await messageService.SendByEnquiryAsync(enquiryId, request, CurrentUserId, ct);

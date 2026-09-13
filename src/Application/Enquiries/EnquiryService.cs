@@ -130,6 +130,24 @@ public class EnquiryService(
             return Result<EnquiryDto>.Failure(
                 Error.Unauthorized("enquiry.unauthorized", "The authenticated account no longer exists."));
 
+        // F.1: A client can only have one open enquiry per property. Reuse any
+        // existing open enquiry so double-submits (even with a fresh idempotency
+        // key) return the same enquiry instead of creating duplicates. A new enquiry
+        // becomes possible once the previous one is resolved.
+        var openEnquiry = await dbContext.Enquiries
+            .Include(e => e.Property)
+                .ThenInclude(p => p.Agent)
+                .ThenInclude(a => a!.User)
+            .OrderByDescending(e => e.CreatedAt)
+            .FirstOrDefaultAsync(
+                e => e.UserId == currentUserId
+                  && e.PropertyId == request.PropertyId
+                  && e.Status != EnquiryStatus.Resolved,
+                ct);
+
+        if (openEnquiry is not null)
+            return Result<EnquiryDto>.Success(openEnquiry.ToDto());
+
         var enquiry = new Enquiry
         {
             FullName = $"{user.FirstName} {user.LastName}".Trim(),

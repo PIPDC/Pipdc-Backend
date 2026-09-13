@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using PIPDC.API.Extensions;
 using PIPDC.Application.Auth;
 using PIPDC.Application.Enquiries;
+using PIPDC.Infrastructure.Idempotency;
 using PIPDC.Infrastructure.RateLimiting;
 
 namespace PIPDC.API.Controllers;
@@ -22,6 +23,7 @@ public class EnquiriesController(IEnquiryService enquiryService) : ControllerBas
     [HttpPost]
     [RequestSizeLimit(100_000)]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
+    [Idempotent]
     public async Task<IActionResult> Create([FromBody] CreateEnquiryRequest request, CancellationToken ct)
     {
         var result = await enquiryService.CreateAsync(request, CurrentUserId, ct);
@@ -69,6 +71,7 @@ public class EnquiriesController(IEnquiryService enquiryService) : ControllerBas
     [Authorize(Roles = Roles.Admin)]
     [HttpPost("{id:int}/notify-agent")]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
+    [Idempotent]
     public async Task<IActionResult> NotifyAgent(int id, CancellationToken ct)
     {
         var result = await enquiryService.NotifyAgentAsync(id, ct);

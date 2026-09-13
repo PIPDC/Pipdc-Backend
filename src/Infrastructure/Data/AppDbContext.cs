@@ -43,6 +43,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DevelopmentUpdate> DevelopmentUpdates => Set<DevelopmentUpdate>();
     public DbSet<DevelopmentProjectImage> DevelopmentProjectImages => Set<DevelopmentProjectImage>();
     public DbSet<DevelopmentTracking> DevelopmentTrackings => Set<DevelopmentTracking>();
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

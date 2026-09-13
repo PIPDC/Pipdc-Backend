@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using PIPDC.API.Extensions;
 using PIPDC.Application.Auth;
 using PIPDC.Infrastructure.Captcha;
+using PIPDC.Infrastructure.Idempotency;
 using PIPDC.Infrastructure.RateLimiting;
 
 namespace PIPDC.API.Controllers;
@@ -17,6 +18,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     [HttpPost("register")]
     [VerifyHuman]
     [EnableRateLimiting(RateLimitPolicies.AuthStrict)]
+    [Idempotent]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken ct)
     {
         var result = await authService.RegisterAsync(request, ct);
@@ -48,6 +50,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     [HttpPost("forgot-password")]
     [VerifyHuman]
     [EnableRateLimiting(RateLimitPolicies.AuthStrict)]
+    [Idempotent]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken ct)
     {
         var result = await authService.ForgotPasswordAsync(request.Email, ct);
@@ -64,6 +67,7 @@ public class AuthController(IAuthService authService) : ControllerBase
 
     [HttpPost("resend-verification")]
     [EnableRateLimiting(RateLimitPolicies.AuthStrict)]
+    [Idempotent]
     public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationRequest request, CancellationToken ct)
     {
         var result = await authService.ResendVerificationEmailAsync(request.Email, ct);
