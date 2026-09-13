@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using PIPDC.Application.Auth;
+using PIPDC.Application.AiChat;
 using PIPDC.Application.Data;
 using PIPDC.Application.Email;
 using PIPDC.Infrastructure.Auth;
@@ -13,6 +14,7 @@ using PIPDC.Domain.Entities;
 using PIPDC.Infrastructure.Data;
 using PIPDC.Infrastructure.Captcha;
 using PIPDC.Infrastructure.Email;
+using PIPDC.Infrastructure.Gemini;
 using PIPDC.Infrastructure.HealthChecks;
 using PIPDC.Infrastructure.RateLimiting;
 
@@ -121,6 +123,12 @@ public static class DependencyInjection
         services.Configure<TurnstileSettings>(config.GetSection("Turnstile"));
         services.AddHttpClient<TurnstileVerifier>(client =>
             client.BaseAddress = new Uri("https://challenges.cloudflare.com"));
+
+        // Google Gemini (AI property assistant), server-side only — the API key never
+        // reaches the browser. Implemented as a typed HttpClient like Turnstile.
+        services.Configure<GeminiSettings>(config.GetSection("Gemini"));
+        services.AddHttpClient<IGeminiClient, GeminiClient>(client =>
+            client.BaseAddress = new Uri("https://generativelanguage.googleapis.com"));
 
         services.AddDatabaseHealthCheck();
 
