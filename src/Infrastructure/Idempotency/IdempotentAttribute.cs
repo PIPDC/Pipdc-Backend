@@ -141,6 +141,7 @@ public sealed class IdempotentAttribute : ActionFilterAttribute
             reservation.ResponseStatusCode = statusCode;
             reservation.ResponseBody = body;
             reservation.CompletedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
         }
         else
         {

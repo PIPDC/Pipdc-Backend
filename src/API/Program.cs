@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using PIPDC.API.Extensions;
 using PIPDC.API.Hubs;
@@ -11,6 +12,7 @@ using PIPDC.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,7 +31,53 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, JwtSubUserIdProvider>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    // Expose the JWT bearer scheme so Scalar offers a global "Authorize" dialog
+    // where the access token is entered once and attached to every request.
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "Paste your JWT access token. Protected endpoints send it as 'Authorization: Bearer <token>'."
+        };
+        return Task.CompletedTask;
+    });
+
+    // Mark only operations that actually carry [Authorize] as requiring the bearer
+    // token (derived from endpoint metadata, so login/register/public endpoints stay
+    // public and role restrictions keep their existing enforcement server-side).
+    options.AddOperationTransformer((operation, context, cancellationToken) =>
+    {
+        var requiresAuth = context.Description.ActionDescriptor.EndpointMetadata
+            .OfType<AuthorizeAttribute>()
+            .Any();
+
+        if (requiresAuth)
+        {
+            operation.Security = new List<OpenApiSecurityRequirement>
+            {
+                new OpenApiSecurityRequirement
+                {
+                    [new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        }
+                    }] = new List<string>()
+                }
+            };
+        }
+
+        return Task.CompletedTask;
+    });
+});
 builder.Services.AddHsts(options =>
 {
     options.MaxAge = TimeSpan.FromDays(365);
