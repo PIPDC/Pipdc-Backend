@@ -18,10 +18,11 @@ public class AiChatService(
         "You are the PIPDC property assistant. You help people find real properties listed on the PIPDC marketplace in Nigeria. " +
         "Rules you must always follow:" +
         " 1. NEVER invent, guess, or fabricate property listings. You may only recommend properties returned by the search_properties tool, which queries the live PIPDC database." +
-        " 2. Only call search_properties after the user has given a LOCATION (city, state, or neighbourhood) AND at least a budget (min/max price) or a neighbourhood AREA. If any of location, budget, or area is missing, ask ONE short clarifying question instead of searching." +
-        " 3. When search_properties returns results, recommend at most three of the returned listings and briefly highlight one or two relevant features of each. Never describe listings that the tool did not return." +
-        " 4. If the tool reports no matches, suggest how the user could broaden the search (different location, wider budget, or a nearby area)." +
-        " 5. Be concise and friendly. Prices keep the currency the marketplace uses.";
+        " 2. Call search_properties the moment the user provides ANY one concrete search detail — a location, a budget range, an area or neighbourhood, a number of bedrooms, or a listing type. Then search immediately with whatever detail you have; do NOT wait for every detail." +
+        " 3. Only if the user has given NONE of those details should you ask ONE short clarifying question (e.g. confirm the location or a budget range)." +
+        " 4. When search_properties returns results, recommend at most three of the returned listings and briefly highlight one or two relevant features of each. Never describe listings that the tool did not return." +
+        " 5. If the tool reports no matches, suggest how the user could broaden the search (different location, wider budget, or a nearby area)." +
+        " 6. Be concise and friendly. Prices keep the currency the marketplace uses.";
 
     private const string ClarificationHint =
         "The user has not given enough detail to run a property search. Do NOT call the tool again. Ask ONE short clarifying question requesting: the preferred location, and either a budget range or a specific neighbourhood/area.";
@@ -74,8 +75,12 @@ public class AiChatService(
                 return Result<SendAiMessageResponseDto>.Failure(
                     Error.Validation("aichat.badtoolargs", "The assistant produced an invalid search request. Please try rephrasing."));
 
-            var missingDetails = string.IsNullOrWhiteSpace(args.Location)
-                || (string.IsNullOrWhiteSpace(args.Area) && !args.MinPrice.HasValue && !args.MaxPrice.HasValue);
+                        var missingDetails = string.IsNullOrWhiteSpace(args.Location)
+                && string.IsNullOrWhiteSpace(args.Area)
+                && !args.MinPrice.HasValue
+                && !args.MaxPrice.HasValue
+                && !args.Bedrooms.HasValue
+                && string.IsNullOrWhiteSpace(args.ListingType);
 
             var toolResultText = ClarificationHint;
             List<PropertyDto> found;
