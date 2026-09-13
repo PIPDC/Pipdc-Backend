@@ -262,7 +262,14 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
                 property.PropertyImages.Add(image);
         }
 
-        await dbContext.SaveChangesAsync(ct);
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result<PropertyDto>.Failure(Error.Concurrency());
+        }
 
         var updated = await LoadPropertyAsync(id, ct);
         return Result<PropertyDto>.Success(updated!.ToDto(enquiryCount: await EnquiryCountAsync(id, ct)));
@@ -282,7 +289,14 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         property.Featured = featured;
         property.UpdatedAt = DateTime.UtcNow;
 
-        await dbContext.SaveChangesAsync(ct);
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result<PropertyDto>.Failure(Error.Concurrency());
+        }
 
         var updated = await LoadPropertyAsync(id, ct);
         return Result<PropertyDto>.Success(updated!.ToDto(enquiryCount: await EnquiryCountAsync(id, ct)));
@@ -304,6 +318,10 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         try
         {
             await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure(Error.Concurrency());
         }
         catch (DbUpdateException)
         {
@@ -342,7 +360,15 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
         property.PropertyImages.Remove(image);
         property.UpdatedAt = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(ct);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure(Error.Concurrency());
+        }
 
         return Result.Success();
     }
@@ -364,7 +390,15 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
         property.Status = newStatus;
         property.UpdatedAt = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(ct);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result<PropertyDto>.Failure(Error.Concurrency());
+        }
 
         var updated = await LoadPropertyAsync(id, ct);
         return Result<PropertyDto>.Success(updated!.ToDto(enquiryCount: await EnquiryCountAsync(id, ct)));
@@ -387,7 +421,15 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
         property.ListingType = newListingType;
         property.UpdatedAt = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(ct);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result<PropertyDto>.Failure(Error.Concurrency());
+        }
 
         var updated = await LoadPropertyAsync(id, ct);
         return Result<PropertyDto>.Success(updated!.ToDto(enquiryCount: await EnquiryCountAsync(id, ct)));
@@ -413,7 +455,15 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
         property.AgentId = agentId;
         property.UpdatedAt = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(ct);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result<PropertyDto>.Failure(Error.Concurrency());
+        }
 
         var updated = await LoadPropertyAsync(id, ct);
         return Result<PropertyDto>.Success(updated!.ToDto(enquiryCount: await EnquiryCountAsync(id, ct)));

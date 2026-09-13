@@ -169,7 +169,14 @@ public class DevelopmentProjectService(IAppDbContext dbContext) : IDevelopmentPr
             dbContext.DevelopmentProjectImages.AddRange(images);
         }
 
-        await dbContext.SaveChangesAsync(ct);
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result<DevelopmentProjectDto>.Failure(Error.Concurrency());
+        }
         return await GetByIdDtoAsync(project.Id, ct);
     }
 
@@ -183,7 +190,15 @@ public class DevelopmentProjectService(IAppDbContext dbContext) : IDevelopmentPr
                 Error.NotFound("development.notfound", $"Development project with id {id} was not found."));
 
         dbContext.DevelopmentProjects.Remove(project);
-        await dbContext.SaveChangesAsync(ct);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure(Error.Concurrency());
+        }
         return Result.Success();
     }
 
@@ -198,7 +213,15 @@ public class DevelopmentProjectService(IAppDbContext dbContext) : IDevelopmentPr
 
         project.Featured = featured;
         project.UpdatedAt = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(ct);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure(Error.Concurrency());
+        }
         return Result.Success();
     }
 

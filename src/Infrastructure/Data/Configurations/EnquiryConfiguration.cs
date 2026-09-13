@@ -36,5 +36,7 @@ public class EnquiryConfiguration : IEntityTypeConfiguration<Enquiry>
             .WithMany(u => u.Enquiries)
             .HasForeignKey(e => e.UserId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Property<uint>("xmin").IsRowVersion();
     }
 }

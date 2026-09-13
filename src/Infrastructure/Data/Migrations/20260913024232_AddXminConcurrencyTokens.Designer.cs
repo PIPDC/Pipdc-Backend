@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PIPDC.Infrastructure.Data;
@@ -12,9 +13,11 @@ using PIPDC.Infrastructure.Data;
 namespace PIPDC.src.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260913024232_AddXminConcurrencyTokens")]
+    partial class AddXminConcurrencyTokens
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -192,7 +195,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Auth.VerificationCode", b =>
@@ -231,7 +234,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("VerificationCodes", (string)null);
+                    b.ToTable("VerificationCodes");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.Agent", b =>
@@ -297,7 +300,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("Agents", (string)null);
+                    b.ToTable("Agents");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.AiChatSession", b =>
@@ -331,7 +334,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("AiChatSessions", (string)null);
+                    b.ToTable("AiChatSessions");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.AppUser", b =>
@@ -473,7 +476,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("BlogPosts", (string)null);
+                    b.ToTable("BlogPosts");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.BlogPostTag", b =>
@@ -488,7 +491,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasIndex("TagId");
 
-                    b.ToTable("BlogPostTags", (string)null);
+                    b.ToTable("BlogPostTags");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.Category", b =>
@@ -520,7 +523,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("Categories", (string)null);
+                    b.ToTable("Categories");
 
                     b.HasData(
                         new
@@ -590,7 +593,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("EnquiryId")
                         .IsUnique();
 
-                    b.ToTable("Conversations", (string)null);
+                    b.ToTable("Conversations");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.DevelopmentProject", b =>
@@ -664,7 +667,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("DevelopmentProjects", (string)null);
+                    b.ToTable("DevelopmentProjects");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.DevelopmentProjectImage", b =>
@@ -701,7 +704,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasIndex("DevelopmentProjectId", "DisplayOrder");
 
-                    b.ToTable("DevelopmentProjectImages", (string)null);
+                    b.ToTable("DevelopmentProjectImages");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.DevelopmentTracking", b =>
@@ -741,7 +744,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("UserId", "DevelopmentProjectId")
                         .IsUnique();
 
-                    b.ToTable("DevelopmentTrackings", (string)null);
+                    b.ToTable("DevelopmentTrackings");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.DevelopmentUnit", b =>
@@ -792,7 +795,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("DevelopmentProjectId", "UnitIdentifier")
                         .IsUnique();
 
-                    b.ToTable("DevelopmentUnits", (string)null);
+                    b.ToTable("DevelopmentUnits");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.DevelopmentUpdate", b =>
@@ -839,7 +842,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasIndex("DevelopmentProjectId", "UpdateDate");
 
-                    b.ToTable("DevelopmentUpdates", (string)null);
+                    b.ToTable("DevelopmentUpdates");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.Enquiry", b =>
@@ -900,7 +903,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Enquiries", (string)null);
+                    b.ToTable("Enquiries");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.IdempotencyRecord", b =>
@@ -954,7 +957,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("UserId", "Key")
                         .IsUnique();
 
-                    b.ToTable("IdempotencyRecords", (string)null);
+                    b.ToTable("IdempotencyRecords");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.LeaseRecord", b =>
@@ -1002,7 +1005,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("PropertyId")
                         .IsUnique();
 
-                    b.ToTable("LeaseRecords", (string)null);
+                    b.ToTable("LeaseRecords");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.Location", b =>
@@ -1048,7 +1051,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("Name", "ParentId")
                         .IsUnique();
 
-                    b.ToTable("Locations", (string)null);
+                    b.ToTable("Locations");
 
                     b.HasData(
                         new
@@ -1382,7 +1385,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasIndex("ConversationId", "CreatedAt");
 
-                    b.ToTable("Messages", (string)null);
+                    b.ToTable("Messages");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.Property", b =>
@@ -1525,7 +1528,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasIndex("ListingType", "Status");
 
-                    b.ToTable("Properties", (string)null);
+                    b.ToTable("Properties");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.PropertyImage", b =>
@@ -1562,7 +1565,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasIndex("PropertyId", "DisplayOrder");
 
-                    b.ToTable("PropertyImages", (string)null);
+                    b.ToTable("PropertyImages");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.SaleRecord", b =>
@@ -1607,7 +1610,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("PropertyId")
                         .IsUnique();
 
-                    b.ToTable("SaleRecords", (string)null);
+                    b.ToTable("SaleRecords");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.SavedProperty", b =>
@@ -1636,7 +1639,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("UserId", "PropertyId")
                         .IsUnique();
 
-                    b.ToTable("SavedProperties", (string)null);
+                    b.ToTable("SavedProperties");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.Tag", b =>
@@ -1668,7 +1671,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("Tags", (string)null);
+                    b.ToTable("Tags");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
