@@ -17,15 +17,16 @@ public class AiChatService(
     private const string SystemPrompt =
         "You are the PIPDC property assistant. You help people find real properties listed on the PIPDC marketplace in Nigeria. " +
         "Rules you must always follow:" +
-        " 1. NEVER invent, guess, or fabricate property listings. You may only recommend properties returned by the search_properties tool, which queries the live PIPDC database." +
-        " 2. Call search_properties the moment the user provides ANY one concrete search detail — a location, a budget range, an area or neighbourhood, a number of bedrooms, or a listing type. Then search immediately with whatever detail you have; do NOT wait for every detail." +
+        " 1. NEVER invent, guess, or fabricate property listings. You may only recommend properties returned by your property database search, which queries the live listings stored in the marketplace." +
+        " 2. Search the listings as soon as the user provides ANY one concrete search detail — a location, a budget range, an area or neighbourhood, a number of bedrooms, or a listing type. Search immediately with whatever detail you have; do NOT wait for every detail." +
         " 3. Only if the user has given NONE of those details should you ask ONE short clarifying question (e.g. confirm the location or a budget range)." +
-        " 4. When search_properties returns results, recommend at most three of the returned listings and briefly highlight one or two relevant features of each. Never describe listings that the tool did not return." +
-        " 5. If the tool reports no matches, suggest how the user could broaden the search (different location, wider budget, or a nearby area)." +
-        " 6. Be concise and friendly. Prices keep the currency the marketplace uses.";
+        " 4. When a search returns results, recommend at most three of the returned listings and briefly highlight one or two relevant features of each. Never describe listings the search did not return." +
+        " 5. If no matching listings are found, suggest how the user could broaden the search (different location, wider budget, or a nearby area)." +
+        " 6. Be concise and friendly. Prices keep the currency the marketplace uses." +
+        " 7. NEVER mention internal tool names, function names, technical API details, or system architecture in anything you say to the user — including if the user directly asks what you run on or how you work. Always speak as a helpful property expert; describe your capabilities in plain language such as 'checking our listings' or 'searching our database', never as a 'tool', 'function', or 'API'.";
 
     private const string ClarificationHint =
-        "The user has not given enough detail to run a property search. Do NOT call the tool again. Ask ONE short clarifying question requesting: the preferred location, and either a budget range or a specific neighbourhood/area.";
+        "The user has not given enough detail to search the listings. Ask ONE short clarifying question requesting: the preferred location, and either a budget range or a specific neighbourhood/area.";
 
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -195,7 +196,6 @@ public class AiChatService(
         var query = new PropertyQueryParameters
         {
             Location = string.IsNullOrWhiteSpace(args.Area) ? args.Location : args.Area,
-            Query = args.Location,
             MinPrice = args.MinPrice,
             MaxPrice = args.MaxPrice,
             Bedrooms = args.Bedrooms,
@@ -212,14 +212,14 @@ public class AiChatService(
     private static string BuildToolResultText(IReadOnlyList<PropertyDto> properties)
     {
         if (properties.Count == 0)
-            return "No properties in the PIPDC database match the current search. Tell the user no listing currently matches, and suggest they relax the location, budget, or area.";
+            return "I couldn't find any matching properties in our listings right now. The homepage may show properties in other locations, or ones that are still in earlier stages of listing. Suggest to the user that they try a different area or a different number of bedrooms.";
 
         var lines = properties.Select((p, i) =>
             $"{i + 1}. \"{p.Title}\" (slug: {p.Slug}) — {p.Currency} {p.Price:N0} ({p.ListingType}), {p.City}, {p.State}" +
             (p.Area is { Length: > 0 } ? $", {p.Area}" : string.Empty) +
             (p.Bedrooms.HasValue ? $", {p.Bedrooms} bedroom{(p.Bedrooms == 1 ? string.Empty : "s")}" : string.Empty));
 
-        return "The property search tool found " + properties.Count +
+        return "The property search found " + properties.Count +
                (properties.Count == 1 ? " match:" : " matches:") + Environment.NewLine +
                string.Join(Environment.NewLine, lines);
     }
