@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,8 @@ namespace PIPDC.API.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/ai-chat")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/ai-chat")]
 public class AiChatController(IAiChatService aiChatService) : ControllerBase
 {
     private string CurrentUserId => User.FindFirstValue(JwtRegisteredClaimNames.Sub)!;

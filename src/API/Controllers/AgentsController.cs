@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,8 @@ using PIPDC.Application.Auth;
 namespace PIPDC.API.Controllers;
 
 [ApiController]
-[Route("api/agents")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/agents")]
 public class AgentsController(IAgentService agentService) : ControllerBase
 {
     [HttpGet]

@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PIPDC.API.Extensions;
@@ -7,7 +8,8 @@ namespace PIPDC.API.Controllers;
 
 [Authorize(Roles = "Admin")]
 [ApiController]
-[Route("api/admin/development-tracking")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/admin/development-tracking")]
 public class DevelopmentTrackingAdminController(IDevelopmentTrackingService trackingService) : ControllerBase
 {
     [HttpGet]

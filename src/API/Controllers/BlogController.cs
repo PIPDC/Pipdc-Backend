@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,8 @@ using PIPDC.Application.Blog;
 namespace PIPDC.API.Controllers;
 
 [ApiController]
-[Route("api/blog")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/blog")]
 public class BlogController(IBlogService blogService) : ControllerBase
 {
     private string? CurrentUserId => User.FindFirstValue(JwtRegisteredClaimNames.Sub);

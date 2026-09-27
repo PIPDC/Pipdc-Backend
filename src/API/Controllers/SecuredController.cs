@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PIPDC.Application.Auth;
@@ -5,7 +6,8 @@ using PIPDC.Application.Auth;
 namespace PIPDC.API.Controllers;
 
 [ApiController]
-[Route("api/secured")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/secured")]
 public class SecuredController : ControllerBase
 {
     [Authorize]

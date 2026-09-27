@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using PIPDC.API.Extensions;
 using PIPDC.Application.Developments;
@@ -5,7 +6,8 @@ using PIPDC.Application.Developments;
 namespace PIPDC.API.Controllers;
 
 [ApiController]
-[Route("api/development-projects")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/development-projects")]
 public class DevelopmentProjectsPublicController(IDevelopmentProjectPublicService publicService) : ControllerBase
 {
     [HttpGet("browse")]

@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,8 @@ using PIPDC.Infrastructure.RateLimiting;
 namespace PIPDC.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class AuthController(IAuthService authService) : ControllerBase
 {
     [HttpPost("register")]

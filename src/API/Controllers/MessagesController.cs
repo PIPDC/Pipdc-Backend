@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,8 @@ namespace PIPDC.API.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/conversations/{conversationId:int}/messages")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/conversations/{conversationId:int}/messages")]
 public class MessagesController(IMessageService messageService) : ControllerBase
 {
     private string CurrentUserId => User.FindFirstValue(JwtRegisteredClaimNames.Sub)!;
@@ -40,7 +42,7 @@ public class MessagesController(IMessageService messageService) : ControllerBase
         return CreatedAtAction(nameof(Get), new { conversationId }, result.Value);
     }
 
-    [HttpPost("~/api/enquiries/{enquiryId:int}/messages")]
+    [HttpPost("~/api/v{version:apiVersion}/enquiries/{enquiryId:int}/messages")]
     [RequestSizeLimit(100_000)]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
     [Idempotent]

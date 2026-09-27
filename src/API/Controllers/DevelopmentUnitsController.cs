@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PIPDC.API.Extensions;
@@ -7,7 +8,8 @@ namespace PIPDC.API.Controllers;
 
 [Authorize(Roles = "Admin")]
 [ApiController]
-[Route("api/development-projects/{projectId:int}/units")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/development-projects/{projectId:int}/units")]
 public class DevelopmentUnitsController(IDevelopmentUnitService unitService) : ControllerBase
 {
     [HttpGet]

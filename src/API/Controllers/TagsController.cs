@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PIPDC.API.Extensions;
@@ -7,7 +8,8 @@ using PIPDC.Application.Blog;
 namespace PIPDC.API.Controllers;
 
 [ApiController]
-[Route("api/blog/tags")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/blog/tags")]
 public class TagsController(ITagService tagService) : ControllerBase
 {
     [HttpGet]
