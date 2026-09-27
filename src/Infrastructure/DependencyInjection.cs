@@ -16,6 +16,7 @@ using PIPDC.Infrastructure.Captcha;
 using PIPDC.Infrastructure.Email;
 using PIPDC.Infrastructure.Gemini;
 using PIPDC.Infrastructure.HealthChecks;
+using PIPDC.Infrastructure.OpenRouter;
 using PIPDC.Infrastructure.RateLimiting;
 
 namespace PIPDC.Infrastructure;
@@ -124,11 +125,28 @@ public static class DependencyInjection
         services.AddHttpClient<TurnstileVerifier>(client =>
             client.BaseAddress = new Uri("https://challenges.cloudflare.com"));
 
-        // Google Gemini (AI property assistant), server-side only — the API key never
-        // reaches the browser. Implemented as a typed HttpClient like Turnstile.
-        services.Configure<GeminiSettings>(config.GetSection("Gemini"));
-        services.AddHttpClient<IGeminiClient, GeminiClient>(client =>
-            client.BaseAddress = new Uri("https://generativelanguage.googleapis.com"));
+        // AI property assistant (server-side only — the API key never reaches the
+        // browser). Implemented as a typed HttpClient like Turnstile. The provider is
+        // selected through configuration (AiChat:Provider): "OpenRouter" routes through
+        // the OpenAI-compatible OpenRouter endpoint, "Gemini" keeps Google's Generative
+        // Language API directly. Both re-use the same IGeminiClient abstraction.
+        var aiProvider = config.GetSection("AiChat:Provider").Value ?? "OpenRouter";
+        if (string.Equals(aiProvider, "Gemini", StringComparison.OrdinalIgnoreCase))
+        {
+            services.Configure<GeminiSettings>(config.GetSection("Gemini"));
+            services.AddHttpClient<IGeminiClient, GeminiClient>(client =>
+                client.BaseAddress = new Uri("https://generativelanguage.googleapis.com"));
+        }
+        else
+        {
+            services.Configure<OpenRouterSettings>(config.GetSection("OpenRouter"));
+            var openRouterBase = config["OpenRouter:BaseUrl"] ?? "https://openrouter.ai/api/v1";
+            services.AddHttpClient<IGeminiClient, OpenRouterClient>(client =>
+            {
+                client.BaseAddress = new Uri(openRouterBase);
+                client.Timeout = TimeSpan.FromSeconds(90);
+            });
+        }
 
         services.AddDatabaseHealthCheck();
 
