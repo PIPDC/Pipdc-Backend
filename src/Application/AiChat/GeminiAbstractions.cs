@@ -4,7 +4,7 @@ namespace PIPDC.Application.AiChat;
 
 public sealed record GeminiMessage(string Role, string Content);
 
-public sealed record GeminiToolCall(string Name, string JsonArguments);
+public sealed record GeminiToolCall(string Name, string JsonArguments, string? Id = null);
 
 public sealed record GeminiTurnResult(string? Text, GeminiToolCall? ToolCall);
 

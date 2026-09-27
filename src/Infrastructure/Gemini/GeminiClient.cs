@@ -189,7 +189,7 @@ public sealed class GeminiClient(
             new()
             {
                 Name = SearchToolName,
-                Description = "Searches the live PIPDC property database for listings matching the user's request and returns up to three matching properties. Only call it when the user has provided a location AND at least a budget or an area.",
+                Description = "Searches the live PIPDC property database for listings matching the user's request and returns up to three matching properties. Call it as soon as the user provides ANY one concrete search detail — a location, an area or neighbourhood, a budget range, a number of bedrooms, or a listing type. For a neighbourhood like Rayfield passed as location/area, search immediately; do NOT ask for a city or state first.",
                 Parameters = SearchFunctionParameters
             }
         }

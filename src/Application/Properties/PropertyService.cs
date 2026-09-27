@@ -32,7 +32,9 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         }
         else if (!string.IsNullOrWhiteSpace(q.Location))
         {
-            var location = q.Location.ToLower();
+            var location = NormalizeLocation(q.Location);
+            if (string.IsNullOrEmpty(location))
+                location = q.Location.ToLower().Trim();
             query = query.Where(p => p.Area!.ToLower().Contains(location)
                                   || p.City.ToLower().Contains(location)
                                   || p.State.ToLower().Contains(location));
@@ -473,6 +475,20 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
     // Helpers
     // =========================================================
 
+    private static string NormalizeLocation(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var normalized = value.Trim().ToLowerInvariant();
+        const string stateSuffix = " state";
+
+        if (normalized.EndsWith(stateSuffix, StringComparison.Ordinal))
+            normalized = normalized[..^stateSuffix.Length].Trim();
+
+        return normalized;
+    }
+
     private static IQueryable<Property> ApplyStatusFilter(IQueryable<Property> query, string? status)
     {
         if (string.IsNullOrWhiteSpace(status))
@@ -480,10 +496,7 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
         return status.Trim() switch
         {
-            "Available" or "ForSale" or "For Sale" => query.Where(p =>
-                p.Status == PropertyStatus.Available && p.ListingType == ListingType.ForSale),
-            "ForLease" or "For Lease" or "For Rent" => query.Where(p =>
-                p.Status == PropertyStatus.Available && p.ListingType == ListingType.ForLease),
+            "Available" => query.Where(p => p.Status == PropertyStatus.Available),
             "Pending" => query.Where(p => p.Status == PropertyStatus.Pending),
             "Sold" => query.Where(p => p.Status == PropertyStatus.Sold),
             "Rented" or "Leased" => query.Where(p => p.Status == PropertyStatus.Rented),
