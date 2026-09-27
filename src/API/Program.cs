@@ -1,4 +1,6 @@
 using System.Net;
+using Asp.Versioning;
+using Asp.Versioning.ApiExplorer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using PIPDC.API.Extensions;
@@ -10,6 +12,7 @@ using PIPDC.Infrastructure;
 using PIPDC.Domain.Common;
 using PIPDC.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
@@ -31,10 +34,38 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, JwtSubUserIdProvider>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
-builder.Services.AddOpenApi(options =>
+
+// API versioning: the version lives in the URL path (e.g. /api/v1/properties). New
+// versions are introduced by adding an [ApiVersion] to a controller and exposing the
+// new route segment; older versions remain reachable while they are still supported.
+builder.Services.AddApiVersioning(options =>
 {
-    // Expose the JWT bearer scheme so Scalar offers a global "Authorize" dialog
-    // where the access token is entered once and attached to every request.
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = new UrlSegmentApiVersionReader();
+}).AddApiExplorer(options =>
+{
+    // Group documents by version (v1, v2, ...) so each version gets its own
+    // OpenAPI document and Scalar reference.
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
+
+builder.Services.AddOpenApi();
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+});
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddApplication();
+
+// One OpenAPI document per API version so Scalar (and clients) can see and select
+// each version independently. The versioner configures the document transformer with
+// the bearer scheme and the per-operation security markers shared by all versions.
+builder.Services.Configure<Microsoft.AspNetCore.OpenApi.OpenApiOptions>("v1", options =>
+{
     options.AddDocumentTransformer((document, context, cancellationToken) =>
     {
         document.Components ??= new OpenApiComponents();
@@ -48,9 +79,6 @@ builder.Services.AddOpenApi(options =>
         return Task.CompletedTask;
     });
 
-    // Mark only operations that actually carry [Authorize] as requiring the bearer
-    // token (derived from endpoint metadata, so login/register/public endpoints stay
-    // public and role restrictions keep their existing enforcement server-side).
     options.AddOperationTransformer((operation, context, cancellationToken) =>
     {
         var requiresAuth = context.Description.ActionDescriptor.EndpointMetadata
@@ -78,13 +106,6 @@ builder.Services.AddOpenApi(options =>
         return Task.CompletedTask;
     });
 });
-builder.Services.AddHsts(options =>
-{
-    options.MaxAge = TimeSpan.FromDays(365);
-    options.IncludeSubDomains = true;
-});
-builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddApplication();
 
 // Return automatic model-state validation failures (from DataAnnotations on request
 // DTOs) in the same { code, message, type } error shape the rest of the API uses.

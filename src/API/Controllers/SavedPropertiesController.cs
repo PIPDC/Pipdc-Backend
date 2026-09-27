@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +12,8 @@ namespace PIPDC.API.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/saved-properties")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/saved-properties")]
 public class SavedPropertiesController(ISavedPropertyService savedPropertyService) : ControllerBase
 {
     private string CurrentUserId => User.FindFirstValue(JwtRegisteredClaimNames.Sub)!;

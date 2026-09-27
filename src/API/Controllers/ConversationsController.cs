@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,8 @@ namespace PIPDC.API.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/conversations")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/conversations")]
 public class ConversationsController(IConversationService conversationService) : ControllerBase
 {
     private string CurrentUserId => User.FindFirstValue(JwtRegisteredClaimNames.Sub)!;
@@ -30,7 +32,7 @@ public class ConversationsController(IConversationService conversationService) :
         return result.ToActionResult();
     }
 
-    [HttpGet("~/api/enquiries/{enquiryId:int}/conversation")]
+    [HttpGet("~/api/v{version:apiVersion}/enquiries/{enquiryId:int}/conversation")]
     public async Task<IActionResult> GetStateByEnquiry(int enquiryId, CancellationToken ct)
     {
         var result = await conversationService.GetStateByEnquiryAsync(enquiryId, CurrentUserId, CurrentUserRoles, ct);

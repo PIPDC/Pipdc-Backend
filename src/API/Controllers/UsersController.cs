@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PIPDC.API.Extensions;
@@ -8,7 +9,8 @@ namespace PIPDC.API.Controllers;
 
 [Authorize(Roles = Roles.Admin)]
 [ApiController]
-[Route("api/users")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/users")]
 public class UsersController(IUserService userService) : ControllerBase
 {
     [HttpGet]

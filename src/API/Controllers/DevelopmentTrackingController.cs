@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +12,8 @@ namespace PIPDC.API.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/development-tracking")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/development-tracking")]
 public class DevelopmentTrackingController(IDevelopmentTrackingService trackingService) : ControllerBase
 {
     private string CurrentUserId => User.FindFirstValue(JwtRegisteredClaimNames.Sub)!;

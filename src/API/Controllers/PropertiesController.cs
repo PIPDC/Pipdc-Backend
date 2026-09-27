@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +9,8 @@ using PIPDC.Application.Properties;
 namespace PIPDC.API.Controllers;
 
 [ApiController]
-[Route("api/properties")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/properties")]
 public class PropertiesController(IPropertyService propertyService) : ControllerBase
 {
     private string? CurrentUserId => User.Identity?.IsAuthenticated == true

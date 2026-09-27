@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +11,8 @@ namespace PIPDC.API.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/dashboard")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/dashboard")]
 public class DashboardController(IDashboardService dashboardService) : ControllerBase
 {
     [HttpGet]
