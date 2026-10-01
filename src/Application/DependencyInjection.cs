@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PIPDC.Application.Agents;
 using PIPDC.Application.AiChat;
 using PIPDC.Application.Blog;
+using PIPDC.Application.Contact;
 using PIPDC.Application.Conversations;
 using PIPDC.Application.Dashboard;
 using PIPDC.Application.Developments;
@@ -32,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<ILocationService, LocationService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IContactService, ContactService>();
 
         services.AddScoped<IDevelopmentProjectService, DevelopmentProjectService>();
         services.AddScoped<IDevelopmentProjectPublicService, DevelopmentProjectPublicService>();

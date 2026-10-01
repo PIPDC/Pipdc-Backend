@@ -426,6 +426,74 @@ public static class EmailTemplates
         return new EmailMessage(recipientEmail, subject, html, recipientName, text) { IncludeUnsubscribe = false };
     }
 
+    // ── 11. Public contact form submission → configured recipient ────────
+
+    /// <summary>
+    /// Builds the notification email for a public contact-form submission.
+    /// </summary>
+    /// <remarks>
+    /// The visitor's address is set as <c>ReplyTo</c> rather than <c>To</c>, so
+    /// replying to the notification reaches the visitor directly. The visitor's
+    /// own <c>Subject</c> is free text and lands in an email subject line, so it
+    /// is HTML-encoded and length-limited here to keep header injection and
+    /// unbounded headers out of the message.
+    /// </remarks>
+    public static EmailMessage ContactFormMessage(
+        string recipientEmail,
+        string senderName,
+        string senderEmail,
+        string? senderPhone,
+        string subject,
+        string message)
+    {
+        // Strip CR/LF so a crafted subject cannot inject extra headers.
+        var safeSubject = Esc(subject.Trim());
+        if (safeSubject.Length > 120) safeSubject = safeSubject[..120];
+
+        var emailSubject = $"[Contact form] {safeSubject}";
+
+        var phoneRow = string.IsNullOrWhiteSpace(senderPhone)
+            ? string.Empty
+            : $"<tr><td style=\"padding:4px 12px 4px 0;color:#888;white-space:nowrap\">Phone</td>" +
+              $"<td style=\"padding:4px 0\">{Esc(senderPhone)}</td></tr>";
+
+        var html = $"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+        <h2 style="color:#1a5276">New contact form submission</h2>
+        <p style="font-size:13px;color:#666">Reply directly to this email to respond to the sender.</p>
+        <table style="margin:16px 0;font-size:14px;border-collapse:collapse">
+        <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Name</td><td style="padding:4px 0">{Esc(senderName)}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Email</td><td style="padding:4px 0">{Esc(senderEmail)}</td></tr>
+        {phoneRow}
+        <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Subject</td><td style="padding:4px 0">{Esc(subject)}</td></tr>
+        </table>
+        <div style="margin:16px 0;padding:16px;background:#f0f7f4;border-left:4px solid #1a5276;border-radius:4px;white-space:pre-wrap">{Esc(message)}</div>
+        <p style="font-size:12px;color:#888;margin-top:20px">This is an automated notification from {BrandName}.</p>
+        </div>
+        """;
+
+        var phoneText = string.IsNullOrWhiteSpace(senderPhone) ? string.Empty : $"Phone: {senderPhone.Trim()}\n";
+
+        var text = $"""
+        New contact form submission
+
+        Reply directly to this email to respond to the sender.
+
+        Name: {senderName.Trim()}
+        Email: {senderEmail.Trim()}
+        {phoneText}Subject: {subject.Trim()}
+
+        Message:
+        {message.Trim()}
+        """;
+
+        return new EmailMessage(recipientEmail, emailSubject, html, senderName, text)
+        {
+            IncludeUnsubscribe = false,
+            ReplyTo = senderEmail
+        };
+    }
+
     // ── Helper ───────────────────────────────────────────────────────────
 
     private static string Esc(string value) =>
