@@ -23,6 +23,12 @@ public static class DependencyInjection
         services.AddScoped<IAiChatService, AiChatService>();
         services.AddScoped<IAgentService, AgentService>();
         services.AddScoped<IAgentApplicationService, AgentApplicationService>();
+
+        // Scoped, not singleton: the generator queries IAppDbContext to avoid
+        // reissuing a licence number that is already taken, and a DbContext is
+        // scoped. A singleton here would be a captive dependency and would also
+        // hold a DbContext that is never disposed.
+        services.AddScoped<IAgentLicenseGenerator, AgentLicenseGenerator>();
         services.AddScoped<IEnquiryService, EnquiryService>();
         services.AddScoped<ISavedPropertyService, SavedPropertyService>();
         services.AddScoped<IConversationService, ConversationService>();

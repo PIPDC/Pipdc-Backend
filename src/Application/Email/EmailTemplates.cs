@@ -494,6 +494,94 @@ public static class EmailTemplates
         };
     }
 
+    // ── 12. Agent application approved ───────────────────────────────────
+
+    public static EmailMessage AgentApplicationApproved(
+        string applicantEmail,
+        string applicantName,
+        string licenseNumber,
+        string baseUrl)
+    {
+        var dashboardUrl = $"{baseUrl}/dashboard";
+
+        var html = $"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+          <h2 style="color:#1a5276">Your agent application has been approved</h2>
+          <p>Hi <strong>{Esc(applicantName)}</strong>,</p>
+          <p>Your application to become a {BrandName} agent has been approved. You can now sign in and start listing properties.</p>
+          <table style="margin:16px 0;font-size:14px;border-collapse:collapse">
+            <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Licence number</td>
+                <td style="padding:4px 0"><strong>{Esc(licenseNumber)}</strong></td></tr>
+          </table>
+          <p style="font-size:14px;color:#555">Keep this number safe. It identifies your agency on every listing you publish.</p>
+          <a href="{dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">Go to your dashboard</a>
+          <p style="font-size:12px;color:#888;margin-top:24px">This is an automated notification from {BrandName}.</p>
+        </div>
+        """;
+
+        var text = $"""
+        Your agent application has been approved
+
+        Hi {applicantName},
+
+        Your application to become a {BrandName} agent has been approved. You can now sign in and start listing properties.
+
+        Licence number: {licenseNumber}
+
+        Keep this number safe. It identifies your agency on every listing you publish.
+
+        Sign in: {dashboardUrl}
+        """;
+
+        return new EmailMessage(applicantEmail, "Your agent application has been approved", html, applicantName, text)
+        {
+            IncludeUnsubscribe = false
+        };
+    }
+
+    // ── 13. Agent application rejected ───────────────────────────────────
+
+    public static EmailMessage AgentApplicationRejected(
+        string applicantEmail,
+        string applicantName,
+        string reason,
+        string baseUrl)
+    {
+        var reapplyUrl = $"{baseUrl}/apply-agent";
+
+        var html = $"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+          <h2 style="color:#1a5276">Your agent application was not approved</h2>
+          <p>Hi <strong>{Esc(applicantName)}</strong>,</p>
+          <p>Thank you for applying to become a {BrandName} agent. We were not able to approve your application at this time.</p>
+          <div style="margin:16px 0;padding:16px;background:#fdf3f3;border-left:4px solid #b03a3a;border-radius:4px;white-space:pre-wrap">{Esc(reason)}</div>
+          <p style="font-size:14px;color:#555">You are welcome to apply again once the reason above has been addressed.</p>
+          <a href="{reapplyUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">Apply again</a>
+          <p style="font-size:12px;color:#888;margin-top:24px">This is an automated notification from {BrandName}.</p>
+        </div>
+        """;
+
+        var text = $"""
+        Your agent application was not approved
+
+        Hi {applicantName},
+
+        Thank you for applying to become a {BrandName} agent. We were not able to approve your application at this time.
+
+        Reason:
+        {reason}
+
+        You are welcome to apply again once the reason above has been addressed.
+
+        Apply again: {reapplyUrl}
+        """;
+
+        return new EmailMessage(applicantEmail, "Your agent application was not approved", html, applicantName, text)
+        {
+            IncludeUnsubscribe = false
+        };
+    }
+
     // ── Helper ───────────────────────────────────────────────────────────
 
     private static string Esc(string value) =>

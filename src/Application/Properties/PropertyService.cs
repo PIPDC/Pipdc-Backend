@@ -12,9 +12,19 @@ namespace PIPDC.Application.Properties;
 
 public class PropertyService(IAppDbContext dbContext, IImageService imageService) : IPropertyService
 {
-    public async Task<Result<PaginatedResult<PropertyDto>>> GetAllAsync(PropertyQueryParameters q, string? currentUserId, CancellationToken ct)
+    public async Task<Result<PaginatedResult<PropertyDto>>> GetAllAsync(
+        PropertyQueryParameters q,
+        string? currentUserId,
+        bool includeSuspendedAgents,
+        CancellationToken ct)
     {
-        IQueryable<Property> query = dbContext.Properties;
+        // Properties belonging to a suspended agent are hidden from public
+        // listings. includeSuspendedAgents is supplied by the API layer from the
+        // caller's role, not from a query parameter. Properties with no agent are
+        // unaffected: they are not moderated by an agent decision.
+        IQueryable<Property> query = includeSuspendedAgents
+            ? dbContext.Properties
+            : dbContext.Properties.VisibleProperties();
 
         var keyword = q.Query ?? q.Keyword;
         if (!string.IsNullOrWhiteSpace(keyword))
@@ -92,9 +102,10 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             PaginatedResult<PropertyDto>.Create(dtos, totalCount, q.EffectivePageNumber, q.EffectivePageSize));
     }
 
-    public async Task<Result<PropertyDto>> GetByIdAsync(int id, string? currentUserId, CancellationToken ct)
+    public async Task<Result<PropertyDto>> GetByIdAsync(
+        int id, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct)
     {
-        var property = await LoadPropertyAsync(id, ct);
+        var property = await LoadPropertyAsync(id, includeSuspendedAgents, ct);
         if (property is null)
             return Result<PropertyDto>.Failure(
                 Error.NotFound("property.notfound", $"Property with id {id} was not found."));
@@ -103,13 +114,18 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             await IsSavedAsync(id, currentUserId, ct), await EnquiryCountAsync(id, ct)));
     }
 
-    public async Task<Result<PropertyDto>> GetBySlugAsync(string slug, string? currentUserId, CancellationToken ct)
+    public async Task<Result<PropertyDto>> GetBySlugAsync(
+        string slug, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct)
     {
-        var property = await dbContext.Properties
+        IQueryable<Property> query = dbContext.Properties
             .Include(p => p.Agent)
                 .ThenInclude(a => a!.User)
-            .Include(p => p.PropertyImages)
-            .FirstOrDefaultAsync(p => p.Slug == slug, ct);
+            .Include(p => p.PropertyImages);
+
+        if (!includeSuspendedAgents)
+            query = query.VisibleProperties();
+
+        var property = await query.FirstOrDefaultAsync(p => p.Slug == slug, ct);
 
         if (property is null)
             return Result<PropertyDto>.Failure(
@@ -119,32 +135,38 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             await IsSavedAsync(property.Id, currentUserId, ct), await EnquiryCountAsync(property.Id, ct)));
     }
 
-    public async Task<Result<IReadOnlyList<PropertyDto>>> GetFeaturedAsync(string? currentUserId, CancellationToken ct)
+    public async Task<Result<IReadOnlyList<PropertyDto>>> GetFeaturedAsync(
+        string? currentUserId, bool includeSuspendedAgents, CancellationToken ct)
     {
-        var items = await Project(
-                dbContext.Properties.Where(p => p.Featured
-                        && (p.Status == PropertyStatus.Available || p.Status == PropertyStatus.Pending))
-                    .OrderByDescending(p => p.CreatedAt),
-                currentUserId)
+        IQueryable<Property> query = dbContext.Properties.Where(p => p.Featured
+            && (p.Status == PropertyStatus.Available || p.Status == PropertyStatus.Pending));
+
+        if (!includeSuspendedAgents)
+            query = query.VisibleProperties();
+
+        var items = await Project(query.OrderByDescending(p => p.CreatedAt), currentUserId)
             .Take(6)
             .ToListAsync(ct);
 
         return Result<IReadOnlyList<PropertyDto>>.Success(items.Select(ToDto).ToList());
     }
 
-    public async Task<Result<IReadOnlyList<PropertyDto>>> GetSimilarAsync(int id, string? currentUserId, CancellationToken ct)
+    public async Task<Result<IReadOnlyList<PropertyDto>>> GetSimilarAsync(
+        int id, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct)
     {
         var property = await dbContext.Properties.FindAsync([id], ct);
         if (property is null)
             return Result<IReadOnlyList<PropertyDto>>.Failure(
                 Error.NotFound("property.notfound", $"Property with id {id} was not found."));
 
-        var items = await Project(
-                dbContext.Properties.Where(p => p.Id != id
-                        && p.PropertyType == property.PropertyType
-                        && (p.Status == PropertyStatus.Available || p.Status == PropertyStatus.Pending))
-                    .OrderByDescending(p => p.CreatedAt),
-                currentUserId)
+        IQueryable<Property> query = dbContext.Properties.Where(p => p.Id != id
+            && p.PropertyType == property.PropertyType
+            && (p.Status == PropertyStatus.Available || p.Status == PropertyStatus.Pending));
+
+        if (!includeSuspendedAgents)
+            query = query.VisibleProperties();
+
+        var items = await Project(query.OrderByDescending(p => p.CreatedAt), currentUserId)
             .Take(3)
             .ToListAsync(ct);
 
@@ -212,13 +234,13 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         dbContext.Properties.Add(property);
         await dbContext.SaveChangesAsync(ct);
 
-        var created = await LoadPropertyAsync(property.Id, ct);
+        var created = await LoadPropertyAsync(property.Id, true, ct);
         return Result<PropertyDto>.Success(created!.ToDto(enquiryCount: 0));
     }
 
     public async Task<Result<PropertyDto>> UpdateAsync(int id, UpdatePropertyRequest request, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        var property = await LoadPropertyAsync(id, ct);
+        var property = await LoadPropertyAsync(id, true, ct);
         if (property is null)
             return Result<PropertyDto>.Failure(
                 Error.NotFound("property.notfound", $"Property with id {id} was not found."));
@@ -289,13 +311,13 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             return Result<PropertyDto>.Failure(Error.Concurrency());
         }
 
-        var updated = await LoadPropertyAsync(id, ct);
+        var updated = await LoadPropertyAsync(id, true, ct);
         return Result<PropertyDto>.Success(updated!.ToDto(enquiryCount: await EnquiryCountAsync(id, ct)));
     }
 
     public async Task<Result<PropertyDto>> SetFeaturedAsync(int id, bool featured, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        var property = await LoadPropertyAsync(id, ct);
+        var property = await LoadPropertyAsync(id, true, ct);
         if (property is null)
             return Result<PropertyDto>.Failure(
                 Error.NotFound("property.notfound", $"Property with id {id} was not found."));
@@ -316,7 +338,7 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             return Result<PropertyDto>.Failure(Error.Concurrency());
         }
 
-        var updated = await LoadPropertyAsync(id, ct);
+        var updated = await LoadPropertyAsync(id, true, ct);
         return Result<PropertyDto>.Success(updated!.ToDto(enquiryCount: await EnquiryCountAsync(id, ct)));
     }
 
@@ -356,7 +378,7 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
     public async Task<Result> RemoveImageAsync(int propertyId, string publicId, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        var property = await LoadPropertyAsync(propertyId, ct);
+        var property = await LoadPropertyAsync(propertyId, true, ct);
         if (property is null)
             return Result.Failure(
                 Error.NotFound("property.notfound", $"Property with id {propertyId} was not found."));
@@ -393,7 +415,7 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
     public async Task<Result<PropertyDto>> ChangeStatusAsync(int id, string status, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        var property = await LoadPropertyAsync(id, ct);
+        var property = await LoadPropertyAsync(id, true, ct);
         if (property is null)
             return Result<PropertyDto>.Failure(
                 Error.NotFound("property.notfound", $"Property with id {id} was not found."));
@@ -418,13 +440,13 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             return Result<PropertyDto>.Failure(Error.Concurrency());
         }
 
-        var updated = await LoadPropertyAsync(id, ct);
+        var updated = await LoadPropertyAsync(id, true, ct);
         return Result<PropertyDto>.Success(updated!.ToDto(enquiryCount: await EnquiryCountAsync(id, ct)));
     }
 
     public async Task<Result<PropertyDto>> ChangeListingTypeAsync(int id, string listingType, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        var property = await LoadPropertyAsync(id, ct);
+        var property = await LoadPropertyAsync(id, true, ct);
         if (property is null)
             return Result<PropertyDto>.Failure(
                 Error.NotFound("property.notfound", $"Property with id {id} was not found."));
@@ -449,7 +471,7 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             return Result<PropertyDto>.Failure(Error.Concurrency());
         }
 
-        var updated = await LoadPropertyAsync(id, ct);
+        var updated = await LoadPropertyAsync(id, true, ct);
         return Result<PropertyDto>.Success(updated!.ToDto(enquiryCount: await EnquiryCountAsync(id, ct)));
     }
 
@@ -459,7 +481,7 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             return Result<PropertyDto>.Failure(
                 Error.Forbidden("property.forbidden", "Only admins can assign or unassign agents."));
 
-        var property = await LoadPropertyAsync(id, ct);
+        var property = await LoadPropertyAsync(id, true, ct);
         if (property is null)
             return Result<PropertyDto>.Failure(
                 Error.NotFound("property.notfound", $"Property with id {id} was not found."));
@@ -483,7 +505,7 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             return Result<PropertyDto>.Failure(Error.Concurrency());
         }
 
-        var updated = await LoadPropertyAsync(id, ct);
+        var updated = await LoadPropertyAsync(id, true, ct);
         return Result<PropertyDto>.Success(updated!.ToDto(enquiryCount: await EnquiryCountAsync(id, ct)));
     }
 
@@ -677,12 +699,18 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             p.CreatedAt,
             p.UpdatedAt);
 
-    private async Task<Property?> LoadPropertyAsync(int id, CancellationToken ct) =>
-        await dbContext.Properties
+    private async Task<Property?> LoadPropertyAsync(int id, bool includeSuspendedAgents, CancellationToken ct)
+    {
+        IQueryable<Property> query = dbContext.Properties
             .Include(p => p.Agent)
                 .ThenInclude(a => a!.User)
-            .Include(p => p.PropertyImages)
-            .FirstOrDefaultAsync(p => p.Id == id, ct);
+            .Include(p => p.PropertyImages);
+
+        if (!includeSuspendedAgents)
+            query = query.VisibleProperties();
+
+        return await query.FirstOrDefaultAsync(p => p.Id == id, ct);
+    }
 
     private async Task<bool> IsSavedAsync(int propertyId, string? currentUserId, CancellationToken ct)
     {

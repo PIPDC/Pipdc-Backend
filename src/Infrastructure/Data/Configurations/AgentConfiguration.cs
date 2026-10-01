@@ -27,6 +27,18 @@ public class AgentConfiguration : IEntityTypeConfiguration<Agent>
         builder.Property(a => a.LicenseNumber)
             .HasMaxLength(100);
 
+        // A licence number identifies exactly one agent, so it must be unique.
+        // The index is the real guarantee: it is what makes two concurrent
+        // approvals collide loudly on insert instead of silently issuing the same
+        // licence twice. The generator also pre-checks, but that check alone
+        // would be a race. Filtered to exclude NULL because existing agents
+        // promoted before the licence workflow existed have no number, and
+        // PostgreSQL already permits many NULLs in a unique index.
+        builder.HasIndex(a => a.LicenseNumber)
+            .IsUnique()
+            .HasFilter("\"LicenseNumber\" IS NOT NULL")
+            .HasDatabaseName("IX_Agents_LicenseNumber");
+
         builder.Property(a => a.PhoneNumber)
             .IsRequired()
             .HasMaxLength(20);

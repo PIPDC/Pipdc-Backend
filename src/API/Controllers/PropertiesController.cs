@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.JsonWebTokens;
 using PIPDC.API.Extensions;
+using PIPDC.Application.Auth;
 using PIPDC.Application.Properties;
 
 namespace PIPDC.API.Controllers;
@@ -19,38 +20,44 @@ public class PropertiesController(IPropertyService propertyService) : Controller
 
     private IList<string> CurrentUserRoles => User.FindAll("role").Select(c => c.Value).ToList();
 
+    /// <summary>
+    /// Only an admin sees properties belonging to a suspended agent. Derived from
+    /// the caller's own role claim, never from a query parameter.
+    /// </summary>
+    private bool IncludeSuspendedAgents => CurrentUserRoles.Contains(Roles.Admin);
+
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] PropertyQueryParameters queryParams, CancellationToken ct)
     {
-        var result = await propertyService.GetAllAsync(queryParams, CurrentUserId, ct);
+        var result = await propertyService.GetAllAsync(queryParams, CurrentUserId, IncludeSuspendedAgents, ct);
         return result.ToActionResult();
     }
 
     [HttpGet("featured")]
     public async Task<IActionResult> GetFeatured(CancellationToken ct)
     {
-        var result = await propertyService.GetFeaturedAsync(CurrentUserId, ct);
+        var result = await propertyService.GetFeaturedAsync(CurrentUserId, IncludeSuspendedAgents, ct);
         return result.ToActionResult();
     }
 
     [HttpGet("slug/{slug}")]
     public async Task<IActionResult> GetBySlug(string slug, CancellationToken ct)
     {
-        var result = await propertyService.GetBySlugAsync(slug, CurrentUserId, ct);
+        var result = await propertyService.GetBySlugAsync(slug, CurrentUserId, IncludeSuspendedAgents, ct);
         return result.ToActionResult();
     }
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id, CancellationToken ct)
     {
-        var result = await propertyService.GetByIdAsync(id, CurrentUserId, ct);
+        var result = await propertyService.GetByIdAsync(id, CurrentUserId, IncludeSuspendedAgents, ct);
         return result.ToActionResult();
     }
 
     [HttpGet("{id:int}/similar")]
     public async Task<IActionResult> GetSimilar(int id, CancellationToken ct)
     {
-        var result = await propertyService.GetSimilarAsync(id, CurrentUserId, ct);
+        var result = await propertyService.GetSimilarAsync(id, CurrentUserId, IncludeSuspendedAgents, ct);
         return result.ToActionResult();
     }
 

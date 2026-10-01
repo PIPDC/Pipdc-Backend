@@ -5,11 +5,15 @@ namespace PIPDC.Application.Properties;
 
 public interface IPropertyService
 {
-    Task<Result<PaginatedResult<PropertyDto>>> GetAllAsync(PropertyQueryParameters queryParams, string? currentUserId, CancellationToken ct);
-    Task<Result<PropertyDto>> GetByIdAsync(int id, string? currentUserId, CancellationToken ct);
-    Task<Result<PropertyDto>> GetBySlugAsync(string slug, string? currentUserId, CancellationToken ct);
-    Task<Result<IReadOnlyList<PropertyDto>>> GetFeaturedAsync(string? currentUserId, CancellationToken ct);
-    Task<Result<IReadOnlyList<PropertyDto>>> GetSimilarAsync(int id, string? currentUserId, CancellationToken ct);
+    // The includeSuspendedAgents flag on the public reads is supplied by the API
+    // layer from the caller's own role. It is never bound from a query string, so
+    // a public caller cannot ask to see properties owned by a suspended agent.
+    Task<Result<PaginatedResult<PropertyDto>>> GetAllAsync(
+        PropertyQueryParameters queryParams, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct);
+    Task<Result<PropertyDto>> GetByIdAsync(int id, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct);
+    Task<Result<PropertyDto>> GetBySlugAsync(string slug, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct);
+    Task<Result<IReadOnlyList<PropertyDto>>> GetFeaturedAsync(string? currentUserId, bool includeSuspendedAgents, CancellationToken ct);
+    Task<Result<IReadOnlyList<PropertyDto>>> GetSimilarAsync(int id, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct);
     Task<Result<PropertyDto>> CreateAsync(CreatePropertyRequest request, string currentUserId, IList<string> currentUserRoles, CancellationToken ct);
     Task<Result<PropertyDto>> UpdateAsync(int id, UpdatePropertyRequest request, string currentUserId, IList<string> currentUserRoles, CancellationToken ct);
     Task<Result<PropertyDto>> SetFeaturedAsync(int id, bool featured, string currentUserId, IList<string> currentUserRoles, CancellationToken ct);

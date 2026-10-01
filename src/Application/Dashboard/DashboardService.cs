@@ -30,7 +30,7 @@ public class DashboardService(
         var totalBlogPosts = await dbContext.BlogPosts.CountAsync(ct);
 
         var properties = await propertyService.GetAllAsync(
-            new PropertyQueryParameters { PageSize = 5 }, currentUserId, ct);
+            new PropertyQueryParameters { PageSize = 5 }, currentUserId, includeSuspendedAgents: true, ct);
         if (properties.IsFailure)
             return Result<AdminDashboardDto>.Failure(properties.Error);
 
@@ -60,7 +60,7 @@ public class DashboardService(
             .CountAsync(p => p.AgentId == profile.Value.Id, ct);
 
         var properties = await propertyService.GetAllAsync(
-            new PropertyQueryParameters { AgentId = profile.Value.Id, PageSize = 5 }, currentUserId, ct);
+            new PropertyQueryParameters { AgentId = profile.Value.Id, PageSize = 5 }, currentUserId, includeSuspendedAgents: true, ct);
         if (properties.IsFailure)
             return Result<AgentDashboardDto>.Failure(properties.Error);
 
