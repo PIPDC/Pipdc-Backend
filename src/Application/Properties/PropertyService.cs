@@ -167,6 +167,16 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
         var slug = await EnsureUniqueSlugAsync(request.Slug, request.Title, ct);
 
+        // Single source of truth: when a LocationId is supplied, State/City are
+        // derived from the location hierarchy rather than accepted from the
+        // client, so the two representations cannot drift apart.
+        var location = await ResolveLocationAsync(request.LocationId, ct);
+        if (location.IsFailure)
+            return Result<PropertyDto>.Failure(location.Error);
+
+        var state = location.Value?.State ?? request.State;
+        var city = location.Value?.City ?? request.City;
+
         var property = new Property
         {
             Title = request.Title,
@@ -185,14 +195,15 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             LotSize = request.LotSize,
             YearBuilt = request.YearBuilt,
             Address = request.Address,
-            State = request.State,
-            City = request.City,
+            State = state,
+            City = city,
             Area = request.Area,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             Amenities = request.Amenities ?? [],
             Featured = request.Featured,
             AgentId = agentIdResult.Value,
+            LocationId = location.Value?.Id,
             CreatedByUserId = currentUserId,
             CreatedAt = DateTime.UtcNow,
             PropertyImages = BuildImages(request.Images)
@@ -247,14 +258,19 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         property.SizeUnit = string.IsNullOrWhiteSpace(request.SizeUnit) ? "sqm" : request.SizeUnit;
         property.LotSize = request.LotSize;
         property.YearBuilt = request.YearBuilt;
+        var location = await ResolveLocationAsync(request.LocationId, ct);
+        if (location.IsFailure)
+            return Result<PropertyDto>.Failure(location.Error);
+
         property.Address = request.Address;
-        property.State = request.State;
-        property.City = request.City;
+        property.State = location.Value?.State ?? request.State;
+        property.City = location.Value?.City ?? request.City;
         property.Area = request.Area;
         property.Latitude = request.Latitude;
         property.Longitude = request.Longitude;
         property.Amenities = request.Amenities ?? [];
         property.Featured = request.Featured;
+        property.LocationId = location.Value?.Id;
         property.UpdatedAt = DateTime.UtcNow;
 
         if (request.Images is not null)
@@ -474,6 +490,59 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
     // =========================================================
     // Helpers
     // =========================================================
+
+    /// <summary>
+    /// Resolves a client-supplied LocationId to the State/City names stored in
+    /// the location hierarchy.
+    ///
+    /// Free text stays supported (the current form collects State and City names
+    /// inline and existing rows have no LocationId), but when a LocationId IS
+    /// supplied it wins, so the structured location and the denormalised text
+    /// columns can never disagree. Returns a null value when no LocationId was
+    /// sent, meaning "keep the client's free text".
+    /// </summary>
+    private async Task<Result<ResolvedLocation?>> ResolveLocationAsync(int? locationId, CancellationToken ct)
+    {
+        if (!locationId.HasValue)
+            return Result<ResolvedLocation?>.Success(null);
+
+        var location = await dbContext.Locations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.Id == locationId.Value, ct);
+
+        if (location is null)
+            return Result<ResolvedLocation?>.Failure(
+                Error.Validation("property.locationnotfound", $"Location with id {locationId.Value} was not found."));
+
+        // Walk to the root so the state is correct even when the client selected
+        // a City or Area node. The hierarchy is only 4 levels deep.
+        var stateName = location.Name;
+        var cityName = location.Name;
+        var currentId = location.ParentId;
+        var isCityLevel = location.Type == LocationType.City || location.Type == LocationType.Area;
+
+        var chain = new List<Location> { location };
+        while (currentId.HasValue)
+        {
+            var parent = await dbContext.Locations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.Id == currentId.Value, ct);
+
+            if (parent is null)
+                break;
+
+            chain.Add(parent);
+            currentId = parent.ParentId;
+        }
+
+        var root = chain.Last();
+        stateName = root.Type == LocationType.State ? root.Name : location.Name;
+        cityName = isCityLevel && chain.Count >= 2 ? chain[chain.Count - 2].Name : location.Name;
+
+        return Result<ResolvedLocation?>.Success(new ResolvedLocation(location.Id, stateName, cityName));
+    }
+
+    private sealed record ResolvedLocation(int Id, string State, string City);
 
     private static string NormalizeLocation(string? value)
     {
