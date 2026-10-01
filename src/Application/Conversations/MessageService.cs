@@ -13,7 +13,7 @@ namespace PIPDC.Application.Conversations;
 public class MessageService(
     IAppDbContext dbContext,
     IHubContext<MessagingHub> hubContext,
-    IEmailService emailService,
+    IEmailQueue emailQueue,
     IOptions<GmailApiSettings> smtpOptions,
     ILogger<MessageService> logger) : IMessageService
 {
@@ -243,7 +243,8 @@ public class MessageService(
                 if (string.IsNullOrWhiteSpace(agentEmail))
                     return;
 
-                await emailService.SendAsync(
+                emailQueue.QueueEmail(
+                    logger,
                     EmailTemplates.ClientReplyToAgent(
                         agentEmail,
                         enquiry.Property.Agent.User.FullName,
@@ -252,6 +253,7 @@ public class MessageService(
                         propertyTitle,
                         enquiryId,
                         baseUrl),
+                    $"client-reply:{conversation.Id}",
                     ct);
             }
             else
@@ -261,7 +263,8 @@ public class MessageService(
                 if (string.IsNullOrWhiteSpace(clientEmail))
                     return;
 
-                await emailService.SendAsync(
+                emailQueue.QueueEmail(
+                    logger,
                     EmailTemplates.AgentReplyToClient(
                         clientEmail,
                         enquiry.FullName,
@@ -270,6 +273,7 @@ public class MessageService(
                         propertyTitle,
                         enquiryId,
                         baseUrl),
+                    $"agent-reply:{conversation.Id}",
                     ct);
             }
         }
