@@ -121,6 +121,13 @@ public static class DependencyInjection
         services.Configure<EmailSettings>(config.GetSection(EmailSettings.SectionName));
         services.AddScoped<IEmailService, GmailApiEmailService>();
 
+        // Outbound email is queued and delivered by a background worker so
+        // notification mail never blocks or fails a user request. The queue is
+        // a singleton and in-memory: unsent messages are lost on restart.
+        services.AddSingleton<EmailQueue>();
+        services.AddSingleton<IEmailQueue>(sp => sp.GetRequiredService<EmailQueue>());
+        services.AddHostedService<EmailQueueWorker>();
+
         services.AddRateLimiting();
 
         // Cloudflare Turnstile anti-bot verification (server-side). Registered as a

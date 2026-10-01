@@ -21,7 +21,7 @@ public static class DependencyInjection
         services.AddScoped<IPropertyService, PropertyService>();
         services.AddScoped<IAiChatService, AiChatService>();
         services.AddScoped<IAgentService, AgentService>();
-services.AddScoped<IAgentApplicationService, AgentApplicationService>();
+        services.AddScoped<IAgentApplicationService, AgentApplicationService>();
         services.AddScoped<IEnquiryService, EnquiryService>();
         services.AddScoped<ISavedPropertyService, SavedPropertyService>();
         services.AddScoped<IConversationService, ConversationService>();

@@ -22,6 +22,7 @@ public class AuthService(
     AppDbContext dbContext,
     IOptions<JwtSettings> jwtOptions,
     IEmailService emailService,
+    IEmailQueue emailQueue,
     IOptions<GmailApiSettings> gmailOptions,
     IHostEnvironment hostEnvironment,
     ILogger<AuthService> logger) : IAuthService
@@ -190,16 +191,11 @@ public class AuthService(
             return Result.Failure(Error.Validation("PASSWORD_CHANGE_FAILED",
                 string.Join("; ", result.Errors.Select(e => e.Description))));
 
-        try
-        {
-            await emailService.SendAsync(
-                EmailTemplates.PasswordChangedNotification(user.Email!, user.FullName,
-                    gmailOptions.Value.FrontendBaseUrl), ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Failed to send password-changed notification to {Email}.", user.Email);
-        }
+        emailQueue.QueueEmail(
+            logger,
+            EmailTemplates.PasswordChangedNotification(user.Email!, user.FullName,
+                gmailOptions.Value.FrontendBaseUrl),
+            "password-changed");
 
         return Result.Success();
     }
@@ -508,6 +504,10 @@ public class AuthService(
 
         try
         {
+            // Intentionally NOT queued. The development fallback below depends on
+            // this send failing, so the verification code only reaches the console
+            // when delivery fails. Queueing would make delivery appear to succeed
+            // and the local signup/reset flow would become untestable.
             await emailService.SendAsync(message, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
