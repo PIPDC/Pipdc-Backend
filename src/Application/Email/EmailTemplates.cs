@@ -340,7 +340,7 @@ public static class EmailTemplates
         This is an automated security message from {BrandName}.
         """;
 
-        return new EmailMessage(recipientEmail, subject, html, recipientName, text);
+        return new EmailMessage(recipientEmail, subject, html, recipientName, text) { IncludeUnsubscribe = false };
     }
 
     // ── 8. Password reset code → User ──────────────────────────────────
@@ -385,7 +385,7 @@ public static class EmailTemplates
         This is an automated security message from {BrandName}.
         """;
 
-        return new EmailMessage(recipientEmail, subject, html, recipientName, text);
+        return new EmailMessage(recipientEmail, subject, html, recipientName, text) { IncludeUnsubscribe = false };
     }
 
     // ── 9. Password changed notification → User ─────────────────────────
@@ -423,7 +423,7 @@ public static class EmailTemplates
         This is an automated security message from {BrandName}.
         """;
 
-        return new EmailMessage(recipientEmail, subject, html, recipientName, text);
+        return new EmailMessage(recipientEmail, subject, html, recipientName, text) { IncludeUnsubscribe = false };
     }
 
     // ── Helper ───────────────────────────────────────────────────────────
