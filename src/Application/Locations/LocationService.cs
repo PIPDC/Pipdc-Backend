@@ -89,18 +89,30 @@ public class LocationService(IAppDbContext dbContext) : ILocationService
             return Result<LocationDto>.Failure(
                 Error.Validation("location.invalidtype", $"'{request.Type}' is not a valid location type. Use: State, LGA, City, or Area."));
 
-        var slug = Slugify(request.Slug ?? request.Name);
-
-        if (await dbContext.Locations.AnyAsync(l => l.Name == request.Name && l.ParentId == request.ParentId, ct))
+        if (string.IsNullOrWhiteSpace(request.Name))
             return Result<LocationDto>.Failure(
-                Error.Validation("location.duplicate", $"A location named '{request.Name}' already exists at this level."));
+                Error.Validation("location.name", "Location name is required."));
+
+        var name = request.Name.Trim();
+
+        var parentCheck = await ValidateParentAsync(locationType, request.ParentId, ct);
+        if (parentCheck is not null)
+            return Result<LocationDto>.Failure(parentCheck);
+
+        var slug = Slugify(request.Slug ?? name);
+
+        // Uniqueness is per parent. Matches UNIQUE (Name, ParentId) for children
+        // and UNIQUE (Name) WHERE "ParentId" IS NULL for roots.
+        if (await dbContext.Locations.AnyAsync(l => l.Name == name && l.ParentId == request.ParentId, ct))
+            return Result<LocationDto>.Failure(
+                Error.Validation("location.duplicate", $"A location named '{name}' already exists at this level."));
 
         if (await dbContext.Locations.AnyAsync(l => l.Slug == slug, ct))
             slug = await EnsureUniqueSlugAsync(slug, ct);
 
         var location = new Location
         {
-            Name = request.Name,
+            Name = name,
             Slug = slug,
             Type = locationType,
             ParentId = request.ParentId,
@@ -137,6 +149,50 @@ public class LocationService(IAppDbContext dbContext) : ILocationService
         dbContext.Locations.Remove(location);
         await dbContext.SaveChangesAsync(ct);
         return Result.Success();
+    }
+
+    /// <summary>
+    /// Enforces the intended hierarchy: State (root) &gt; LGA &gt; City &gt; Area.
+    ///
+    /// City is intentionally allowed to hang directly off a State, because the
+    /// current property form collects a city name inline without an LGA step.
+    /// Accepting that shape now keeps existing data and the existing UI working
+    /// while still refusing structurally impossible trees.
+    /// </summary>
+    private async Task<Error?> ValidateParentAsync(LocationType type, int? parentId, CancellationToken ct)
+    {
+        if (type == LocationType.State)
+        {
+            if (parentId.HasValue)
+                return Error.Validation("location.rootparent", "A State is a root location and cannot have a parent.");
+
+            return null;
+        }
+
+        if (!parentId.HasValue)
+            return Error.Validation("location.parentrequired", $"A {type} must belong to a parent location.");
+
+        var parent = await dbContext.Locations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.Id == parentId.Value, ct);
+
+        if (parent is null)
+            return Error.NotFound("location.parentnotfound", $"Parent location with id {parentId.Value} was not found.");
+
+        var allowed = type switch
+        {
+            LocationType.LGA => parent.Type == LocationType.State,
+            LocationType.City => parent.Type is LocationType.LGA or LocationType.State,
+            LocationType.Area => parent.Type is LocationType.City or LocationType.LGA,
+            _ => false,
+        };
+
+        if (!allowed)
+            return Error.Validation(
+                "location.invalidhierarchy",
+                $"A {type} cannot be placed under a {parent.Type}.");
+
+        return null;
     }
 
     private static string Slugify(string value)

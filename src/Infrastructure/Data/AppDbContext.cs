@@ -24,6 +24,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Property> Properties => Set<Property>();
     public DbSet<PropertyImage> PropertyImages => Set<PropertyImage>();
     public DbSet<Agent> Agents => Set<Agent>();
+    public DbSet<AgentApplication> AgentApplications => Set<AgentApplication>();
     public DbSet<Enquiry> Enquiries => Set<Enquiry>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<Message> Messages => Set<Message>();
@@ -58,7 +59,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             new Category { Id = 4, Name = "Home Buying Tips", Slug = "home-buying-tips", CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
 
-        SeedLocations(builder);
+        builder.Entity<Location>().HasData(LocationSeedData.BuildStateRows());
 
         foreach (var entityType in builder.Model.GetEntityTypes())
         {
@@ -71,63 +72,4 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             }
         }
     }
-
-    private static void SeedLocations(ModelBuilder builder)
-    {
-        var seedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-        var states = new (string Name, string Slug)[]
-        {
-            ("Abia", "abia"),
-            ("Adamawa", "adamawa"),
-            ("Akwa Ibom", "akwa-ibom"),
-            ("Anambra", "anambra"),
-            ("Bauchi", "bauchi"),
-            ("Bayelsa", "bayelsa"),
-            ("Benue", "benue"),
-            ("Borno", "borno"),
-            ("Cross River", "cross-river"),
-            ("Delta", "delta"),
-            ("Ebonyi", "ebonyi"),
-            ("Edo", "edo"),
-            ("Ekiti", "ekiti"),
-            ("Enugu", "enugu"),
-            ("FCT", "fct"),
-            ("Gombe", "gombe"),
-            ("Imo", "imo"),
-            ("Jigawa", "jigawa"),
-            ("Kaduna", "kaduna"),
-            ("Kano", "kano"),
-            ("Katsina", "katsina"),
-            ("Kebbi", "kebbi"),
-            ("Kogi", "kogi"),
-            ("Kwara", "kwara"),
-            ("Lagos", "lagos"),
-            ("Nasarawa", "nasarawa"),
-            ("Niger", "niger"),
-            ("Ogun", "ogun"),
-            ("Ondo", "ondo"),
-            ("Osun", "osun"),
-            ("Oyo", "oyo"),
-            ("Plateau", "plateau"),
-            ("Rivers", "rivers"),
-            ("Sokoto", "sokoto"),
-            ("Taraba", "taraba"),
-            ("Yobe", "yobe"),
-            ("Zamfara", "zamfara"),
-        };
-
-        var locationData = states.Select((s, i) => new Location
-        {
-            Id = i + 1,
-            Name = s.Name,
-            Slug = s.Slug,
-            Type = LocationType.State,
-            ParentId = null,
-            CreatedAt = seedDate,
-        }).ToArray();
-
-        builder.Entity<Location>().HasData(locationData);
-    }
-
 }

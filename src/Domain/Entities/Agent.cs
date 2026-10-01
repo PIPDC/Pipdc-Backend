@@ -12,6 +12,15 @@ public class Agent : AuditableEntity
     public string? LicenseNumber { get; set; }
     public string PhoneNumber { get; set; } = string.Empty;
     public bool IsVerified { get; set; }
+
+    // Moderation state. This is an AGENT-level concern and is deliberately kept
+    // separate from Property.Status, which continues to describe the property
+    // itself (available / pending / sold / rented / unavailable). An agent being
+    // suspended must never rewrite the status of the properties they own.
+    public bool IsSuspended { get; set; }
+    public DateTime? SuspendedAt { get; set; }
+    public string? SuspensionReason { get; set; }
+
     public string UserId { get; set; } = string.Empty;
 
     public AppUser User { get; set; } = null!;

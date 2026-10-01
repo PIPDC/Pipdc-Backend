@@ -115,6 +115,10 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
 
         services.Configure<GmailApiSettings>(config.GetSection("GmailApiSettings"));
+
+        // Non-secret email configuration (currently the public contact-form
+        // recipient). Secrets stay in GmailApiSettings / user secrets.
+        services.Configure<EmailSettings>(config.GetSection(EmailSettings.SectionName));
         services.AddScoped<IEmailService, GmailApiEmailService>();
 
         services.AddRateLimiting();

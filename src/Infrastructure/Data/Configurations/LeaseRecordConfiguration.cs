@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PIPDC.Domain.Entities;
+using PIPDC.Domain.Enums;
 
 namespace PIPDC.Infrastructure.Data.Configurations;
 
@@ -21,6 +22,11 @@ public class LeaseRecordConfiguration : IEntityTypeConfiguration<LeaseRecord>
 
         builder.Property(l => l.Notes)
             .HasMaxLength(4000);
+
+        builder.Property(l => l.Status)
+            .HasConversion<string>()
+            .HasMaxLength(50)
+            .HasDefaultValue(TransactionStatus.Pending);
 
         builder.HasOne(l => l.Property)
             .WithOne(p => p.LeaseRecord)

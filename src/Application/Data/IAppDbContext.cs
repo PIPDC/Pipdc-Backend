@@ -9,6 +9,7 @@ public interface IAppDbContext
     DbSet<Property> Properties { get; }
     DbSet<PropertyImage> PropertyImages { get; }
     DbSet<Agent> Agents { get; }
+    DbSet<AgentApplication> AgentApplications { get; }
     DbSet<Enquiry> Enquiries { get; }
     DbSet<Conversation> Conversations { get; }
     DbSet<Message> Messages { get; }

@@ -35,6 +35,14 @@ public class AgentConfiguration : IEntityTypeConfiguration<Agent>
             .IsRequired()
             .HasMaxLength(450);
 
+        builder.Property(a => a.SuspensionReason)
+            .HasMaxLength(1000);
+
+        // Public agent directory and public property listings both filter on this
+        // flag, so it is indexed. The table is small, but the flag is on the
+        // hottest read path in the application.
+        builder.HasIndex(a => a.IsSuspended);
+
         builder.HasOne(a => a.User)
             .WithOne(u => u.Agent)
             .HasForeignKey<Agent>(a => a.UserId)
