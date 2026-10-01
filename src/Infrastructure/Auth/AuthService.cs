@@ -259,14 +259,31 @@ public class AuthService(
         return Result.Success();
     }
 
+    /// <summary>
+    /// Roles this endpoint may grant. Deliberately excludes Admin: elevation must
+    /// not be reachable through the same route that onboards agents.
+    /// </summary>
+    private static readonly string[] AllowedRoles = [Roles.Agent, Roles.User];
+
     public async Task<Result> AddRoleAsync(AddRoleRequest request, CancellationToken ct)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null)
             return Result.Failure(Error.NotFound("USER_NOT_FOUND", "User not found."));
 
+        // Allow-list rather than a RoleExistsAsync check alone. That check accepts
+        // any role present in the database, including "Admin", so an admin could
+        // grant full administrative access to another account through an endpoint
+        // whose purpose is agent onboarding. Roles are also case-sensitive in
+        // ASP.NET Identity, so an unvalidated value is as likely to be a typo as an
+        // escalation attempt.
+        if (!AllowedRoles.Contains(request.Role))
+            return Result.Failure(Error.Validation(
+                "ROLE_NOT_ALLOWED",
+                $"'{request.Role}' cannot be assigned here. Allowed roles: {string.Join(", ", AllowedRoles)}."));
+
         if (!await roleManager.RoleExistsAsync(request.Role))
-            return Result.Failure(Error.Validation("ROLE_NOT_FOUND", "Role does not exist."));
+            return Result.Failure(Error.Validation("ROLE_NOT_FOUND", $"The {request.Role} role does not exist."));
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 

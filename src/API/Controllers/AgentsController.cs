@@ -17,14 +17,21 @@ public class AgentsController(IAgentService agentService) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] AgentQueryParameters queryParams, CancellationToken ct)
     {
-        var result = await agentService.GetAllAsync(queryParams, ct);
+        // Suspended agents are hidden from this public directory. Admins keep
+        // full visibility, derived from the caller's own claim rather than a
+        // query parameter a public caller could set.
+        var includeSuspended = User.IsInRole(Roles.Admin);
+        var result = await agentService.GetAllAsync(queryParams, includeSuspended, ct);
         return result.ToActionResult();
     }
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id, CancellationToken ct)
     {
-        var result = await agentService.GetByIdAsync(id, ct);
+        // A suspended agent's public profile is not found. The same 404 an
+        // unknown id returns, so the directory does not confirm that a suspended
+        // agent exists.
+        var result = await agentService.GetByIdAsync(id, User.IsInRole(Roles.Admin), ct);
         return result.ToActionResult();
     }
 
@@ -76,7 +83,7 @@ public class AgentsController(IAgentService agentService) : ControllerBase
     [HttpGet("{id:int}/summary")]
     public async Task<IActionResult> GetSummary(int id, CancellationToken ct)
     {
-        var result = await agentService.GetSummaryAsync(id, ct);
+        var result = await agentService.GetSummaryAsync(id, User.IsInRole(Roles.Admin), ct);
         return result.ToActionResult();
     }
 }

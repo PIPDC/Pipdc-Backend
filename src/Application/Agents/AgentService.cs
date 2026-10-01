@@ -11,9 +11,17 @@ namespace PIPDC.Application.Agents;
 
 public class AgentService(IAppDbContext dbContext, UserManager<AppUser> userManager) : IAgentService
 {
-    public async Task<Result<PaginatedResult<AgentDto>>> GetAllAsync(AgentQueryParameters q, CancellationToken ct)
+    public async Task<Result<PaginatedResult<AgentDto>>> GetAllAsync(
+        AgentQueryParameters q,
+        bool includeSuspended,
+        CancellationToken ct)
     {
-        IQueryable<Agent> query = dbContext.Agents;
+        // The public agent directory hides suspended agents. includeSuspended is
+        // passed by the API layer from the caller's own role, never from a query
+        // string, so a public caller cannot opt themselves into seeing them.
+        IQueryable<Agent> query = includeSuspended
+            ? dbContext.Agents
+            : dbContext.Agents.VisibleAgents();
 
         if (!string.IsNullOrWhiteSpace(q.Keyword))
         {
@@ -61,17 +69,21 @@ public class AgentService(IAppDbContext dbContext, UserManager<AppUser> userMana
             PaginatedResult<AgentDto>.Create(items, totalCount, q.EffectivePageNumber, q.PageSize));
     }
 
-    public async Task<Result<AgentDto>> GetByIdAsync(int id, CancellationToken ct)
+    public async Task<Result<AgentDto>> GetByIdAsync(int id, bool includeSuspended, CancellationToken ct)
     {
-        var agent = await dbContext.Agents
-            .Include(a => a.User)
-            .FirstOrDefaultAsync(a => a.Id == id, ct);
+        IQueryable<Agent> query = dbContext.Agents.Include(a => a.User);
+        if (!includeSuspended)
+            query = query.VisibleAgents();
+
+        var agent = await query.FirstOrDefaultAsync(a => a.Id == id, ct);
 
         if (agent is null)
             return Result<AgentDto>.Failure(
                 Error.NotFound("agent.notfound", $"Agent with id {id} was not found."));
 
-        var propertyCount = await dbContext.Properties.CountAsync(p => p.AgentId == id, ct);
+        var propertyCount = await dbContext.Properties
+            .VisibleProperties()
+            .CountAsync(p => p.AgentId == id, ct);
 
         return Result<AgentDto>.Success(agent.ToDto(propertyCount));
     }
@@ -228,17 +240,21 @@ public class AgentService(IAppDbContext dbContext, UserManager<AppUser> userMana
         return Result<AgentDto>.Success(agent.ToDto(propertyCount));
     }
 
-    public async Task<Result<AgentSummaryDto>> GetSummaryAsync(int agentId, CancellationToken ct)
+    public async Task<Result<AgentSummaryDto>> GetSummaryAsync(int agentId, bool includeSuspended, CancellationToken ct)
     {
-        var agent = await dbContext.Agents
-            .Include(a => a.User)
-            .FirstOrDefaultAsync(a => a.Id == agentId, ct);
+        IQueryable<Agent> query = dbContext.Agents.Include(a => a.User);
+        if (!includeSuspended)
+            query = query.VisibleAgents();
+
+        var agent = await query.FirstOrDefaultAsync(a => a.Id == agentId, ct);
 
         if (agent is null)
             return Result<AgentSummaryDto>.Failure(
                 Error.NotFound("agent.notfound", $"Agent with id {agentId} was not found."));
 
-        var propertyCount = await dbContext.Properties.CountAsync(p => p.AgentId == agentId, ct);
+        var propertyCount = await dbContext.Properties
+            .VisibleProperties()
+            .CountAsync(p => p.AgentId == agentId, ct);
 
         var enquiryCount = await dbContext.Enquiries
             .CountAsync(e => e.Property.AgentId == agentId, ct);

@@ -376,7 +376,9 @@ public class AiChatService(
 
     private async Task<List<PropertyDto>> FetchPropertiesAsync(PropertyQueryParameters query, CancellationToken ct)
     {
-        var result = await propertyService.GetAllAsync(query, null, ct);
+        // The concierge answers from the public catalogue, so it must not surface
+        // properties owned by a suspended agent.
+        var result = await propertyService.GetAllAsync(query, null, includeSuspendedAgents: false, ct);
         return result.IsSuccess ? result.Value.Items : new List<PropertyDto>();
     }
 
