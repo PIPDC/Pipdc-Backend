@@ -32,4 +32,11 @@ public sealed record EmailMessage(
     /// </para>
     /// </remarks>
     public bool IncludeUnsubscribe { get; init; }
+
+    /// <summary>
+    /// Optional address that replies to this message are routed to, instead of
+    /// <see cref="To"/>. Used by the contact form so replying to the
+    /// notification reaches the sender rather than the no-reply account.
+    /// </summary>
+    public string? ReplyTo { get; init; }
 }

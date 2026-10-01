@@ -29,6 +29,9 @@ public class GmailApiEmailService(
             mimeMessage.From.Add(new MailboxAddress(settings.SenderName, settings.SenderEmail));
             mimeMessage.To.Add(new MailboxAddress(message.ToName, message.To));
 
+            if (!string.IsNullOrWhiteSpace(message.ReplyTo))
+                mimeMessage.ReplyTo.Add(MailboxAddress.Parse(message.ReplyTo));
+
             if (message.IncludeUnsubscribe)
             {
                 mimeMessage.Headers.Add("List-Unsubscribe", $"<mailto:{settings.SenderEmail}?subject=Unsubscribe>");
