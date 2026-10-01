@@ -12,6 +12,7 @@ public sealed class GeminiClient(
     ILogger<GeminiClient> logger) : IGeminiClient
 {
     private const string SearchToolName = "search_properties";
+    private const string DevelopmentToolName = "search_developments";
 
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
     {
@@ -170,14 +171,39 @@ public sealed class GeminiClient(
             },
             ["bedrooms"] = new Dictionary<string, object>
             {
+                ["type"] = "array",
+                ["items"] = new Dictionary<string, object> { ["type"] = "integer" },
+                ["description"] = "EXACT number(s) of bedrooms the user asked for. Array with ONE number for a specific count (e.g. [3] for '3-bedroom'), or SEVERAL numbers for multiple specific counts (e.g. [2, 6] for '2 or 6 bedrooms'). These are exact counts, NOT a minimum — never pass a lower floor to stand in for an exact count."
+            },
+            ["minBedrooms"] = new Dictionary<string, object>
+            {
                 ["type"] = "integer",
-                ["description"] = "Minimum number of bedrooms the user requested, if any."
+                ["description"] = "A MINIMUM number of bedrooms, only when the user asks for 'at least N', 'N or more', or 'minimum N' bedrooms (e.g. 4 for 'at least 4 bedrooms'). Do NOT use for specific counts like '3-bedroom' — use bedrooms instead."
             },
             ["listingType"] = new Dictionary<string, object>
             {
                 ["type"] = "string",
                 ["enum"] = new[] { "ForSale", "ForLease" },
                 ["description"] = "Whether the user wants to buy (ForSale) or rent (ForLease), if stated."
+            }
+        }
+    };
+
+    private static readonly Dictionary<string, object> DevelopmentFunctionParameters = new()
+    {
+        ["type"] = "object",
+        ["properties"] = new Dictionary<string, object>
+        {
+            ["location"] = new Dictionary<string, object>
+            {
+                ["type"] = "string",
+                ["description"] = "Optional city or area to narrow ongoing and upcoming development projects to (e.g. Jos, Rayfield, Bukuru)."
+            },
+            ["status"] = new Dictionary<string, object>
+            {
+                ["type"] = "string",
+                ["enum"] = new[] { "Planned", "UnderConstruction", "NearCompletion" },
+                ["description"] = "Optional status filter for development projects. Leave empty to return all ongoing and upcoming projects."
             }
         }
     };
@@ -189,8 +215,14 @@ public sealed class GeminiClient(
             new()
             {
                 Name = SearchToolName,
-                Description = "Searches the live PIPDC property database for listings matching the user's request and returns up to three matching properties. Call it as soon as the user provides ANY one concrete search detail — a location, an area or neighbourhood, a budget range, a number of bedrooms, or a listing type. For a neighbourhood like Rayfield passed as location/area, search immediately; do NOT ask for a city or state first.",
+                Description = "Searches the live PIPDC property database for listings matching the user's request and returns up to three matching properties. Call it as soon as the user provides ANY one concrete search detail — a location, an area or neighbourhood, a budget range, a number of bedrooms, or a listing type. For a neighbourhood like Rayfield passed as location/area, search immediately; do NOT ask for a city or state first. Filter strictly by the user's exact criteria: pass the EXACT bedroom count(s) requested, the stated location, budget and listing type; never search broader than the user asked for.",
                 Parameters = SearchFunctionParameters
+            },
+            new()
+            {
+                Name = DevelopmentToolName,
+                Description = "Looks up PIPDC's ongoing and upcoming property DEVELOPMENT projects — estates and developments still being planned, under construction or near completion — and returns up to six projects with name, status, progress percentage, location, expected completion, unit availability and the latest update. Call it when the user asks about ongoing, upcoming, future, in-progress or under-construction projects, development estates, or investment opportunities still being built. Do NOT use it for finished properties available now — those use search_properties.",
+                Parameters = DevelopmentFunctionParameters
             }
         }
     };
