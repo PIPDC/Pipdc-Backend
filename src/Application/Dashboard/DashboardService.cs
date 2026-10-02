@@ -99,10 +99,17 @@ public class DashboardService(
             user.LastName,
             user.PhoneNumber,
             user.FullName,
-            roles);
+            roles,
+            user.LocationId,
+            user.Location?.Name,
+            user.Location?.Type.ToString(),
+            user.Latitude.HasValue && user.Longitude.HasValue);
 
+        // The client's saved-property strip must honour the same visibility rule
+        // as the saved list itself, or a suspended agent's inventory reappears
+        // on the dashboard. The flag comes from the caller's resolved roles.
         var saved = await savedPropertyService.GetSavedAsync(
-            currentUserId, new SavedPropertyQueryParameters { PageSize = 5 }, ct);
+            currentUserId, roles.Contains(Roles.Admin), new SavedPropertyQueryParameters { PageSize = 5 }, ct);
         if (saved.IsFailure)
             return Result<ClientDashboardDto>.Failure(saved.Error);
 

@@ -25,6 +25,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<PropertyImage> PropertyImages => Set<PropertyImage>();
     public DbSet<Agent> Agents => Set<Agent>();
     public DbSet<AgentApplication> AgentApplications => Set<AgentApplication>();
+    public DbSet<AgentRegistrationAppeal> AgentRegistrationAppeals => Set<AgentRegistrationAppeal>();
+    public DbSet<AgentApplicationBlock> AgentApplicationBlocks => Set<AgentApplicationBlock>();
+    public DbSet<AgentReport> AgentReports => Set<AgentReport>();
+    public DbSet<AgentReview> AgentReviews => Set<AgentReview>();
     public DbSet<Enquiry> Enquiries => Set<Enquiry>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<Message> Messages => Set<Message>();
@@ -35,6 +39,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<BlogPostTag> BlogPostTags => Set<BlogPostTag>();
     public DbSet<Location> Locations => Set<Location>();
+    // AppUser/Users comes from IdentityDbContext and satisfies IAppDbContext.Users.
     public DbSet<SavedProperty> SavedProperties => Set<SavedProperty>();
     public DbSet<AiChatSession> AiChatSessions => Set<AiChatSession>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();

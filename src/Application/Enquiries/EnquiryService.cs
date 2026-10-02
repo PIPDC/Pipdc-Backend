@@ -128,7 +128,12 @@ public class EnquiryService(
 
     public async Task<Result<EnquiryDto>> CreateAsync(CreateEnquiryRequest request, string currentUserId, CancellationToken ct)
     {
-        if (!await dbContext.Properties.AnyAsync(p => p.Id == request.PropertyId, ct))
+        // Visibility-aware. An unfiltered check would let anyone raise an enquiry
+        // against a suspended agent's listing, which creates a conversation and
+        // notifies that agent. Rejecting the hidden id here also stops the
+        // existing-open-enquiry reuse path below from echoing back a
+        // conversation against a listing that is no longer public.
+        if (!await dbContext.Properties.VisibleProperties().AnyAsync(p => p.Id == request.PropertyId, ct))
             return Result<EnquiryDto>.Failure(
                 Error.Validation("enquiry.invalidproperty", $"Property with id {request.PropertyId} does not exist."));
 
@@ -225,6 +230,12 @@ public class EnquiryService(
         enquiry.Status = status;
         enquiry.UpdatedAt = DateTime.UtcNow;
 
+        // Changing the status is acting on the enquiry, so it also counts as
+        // having attended it. Without this an agent could resolve an enquiry
+        // from the table and it would still be counted as unread.
+        if (enquiry.AgentReadAt is null)
+            enquiry.AgentReadAt = DateTime.UtcNow;
+
         try
         {
             await dbContext.SaveChangesAsync(ct);
@@ -275,7 +286,14 @@ public class EnquiryService(
             {
                 AgentId = g.Key,
                 TotalEnquiries = g.Count(),
-                UnreadEnquiries = g.Count(e => e.AgentReadAt == null),
+                // "Unread" means not yet attended. Progressing or closing an
+                // enquiry is an action on it, so those are not unread even
+                // though AgentReadAt was never stamped. Counting only
+                // AgentReadAt == null reported resolved enquiries as unread and
+                // left the agent's badge permanently inflated.
+                UnreadEnquiries = g.Count(e =>
+                    e.AgentReadAt == null
+                    && e.Status == EnquiryStatus.Pending),
                 LatestEnquiryAt = g.Max(e => e.CreatedAt)
             })
             .ToListAsync(ct);
@@ -424,7 +442,12 @@ public class EnquiryService(
             e.Property.AgentId,
             e.Property.Agent != null ? e.Property.Agent.User.FullName : string.Empty,
             e.AgentReadAt,
-            e.AgentReadAt != null,
+            // Same attended rule as the mapper: a progressed or resolved
+            // enquiry is not "new" just because it was never opened.
+            e.AgentReadAt != null
+                || e.Status == EnquiryStatus.InProgress
+                || e.Status == EnquiryStatus.ViewingScheduled
+                || e.Status == EnquiryStatus.Resolved,
             e.CreatedAt,
             e.UpdatedAt));
 

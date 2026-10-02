@@ -29,7 +29,20 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.MaxRequestBodySize = 10 * 1024 * 1024;
 });
 
-builder.Services.AddControllers();
+// Enums cross the wire as their names ("Open", "FraudOrScam"), not their numeric
+// ordinals. The rest of the API has always done this by taking a string in the DTO
+// and calling Enum.TryParse (see PropertyService.TryResolveStatus,
+// EnquiryService line 222, BlogService.ResolveStatus). This converter makes the
+// remaining DTOs that declare a real enum behave the same way, in both
+// directions, so a client that sends "UnderReview" is understood and a response
+// reports "Open" rather than 0. Without it, System.Text.Json only accepts
+// numbers and every such request fails to bind.
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, JwtSubUserIdProvider>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();

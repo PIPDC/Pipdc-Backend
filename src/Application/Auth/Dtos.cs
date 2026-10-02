@@ -29,7 +29,14 @@ public record RemoveRoleRequest(string Email, string Role);
 public record UpdateProfileRequest(
     [Required, MaxLength(100)] string FirstName,
     [Required, MaxLength(100)] string LastName,
-    [MaxLength(20)] string? PhoneNumber);
+    [MaxLength(20)] string? PhoneNumber,
+    // Batch 5. Location is opt-in and is never touched by an ordinary profile save:
+    // a nullable int cannot distinguish "not supplied" from "explicitly null", so
+    // clearing is requested deliberately through ClearLocation instead of inferred.
+    int? LocationId = null,
+    double? Latitude = null,
+    double? Longitude = null,
+    bool ClearLocation = false);
 
 public record ChangePasswordRequest(
     [Required] string CurrentPassword,
@@ -41,7 +48,12 @@ public record CurrentUserDto(
     string LastName,
     string? PhoneNumber,
     string FullName,
-    IEnumerable<string> Roles);
+    IEnumerable<string> Roles,
+    // Batch 5. Trailing and optional so existing construction sites stay valid.
+    int? LocationId = null,
+    string? LocationName = null,
+    string? LocationType = null,
+    bool HasCoordinates = false);
 public record AuthResponse(
     string UserId,
     string Email,

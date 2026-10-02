@@ -18,13 +18,24 @@ public static class PublicVisibility
     /// stays in the database and keeps all of their enquiries, conversations and
     /// properties; they are only hidden from public surfaces.
     /// </summary>
+    /// <remarks>
+    /// A removed agent is hidden for the same reason, and more strongly: their
+    /// registration was revoked outright rather than paused. The row is retained so
+    /// their history stays intact, and so an upheld appeal can restore the same
+    /// registration.
+    /// </remarks>
     public static IQueryable<Agent> VisibleAgents(this IQueryable<Agent> query) =>
-        query.Where(a => !a.IsSuspended);
+        query.Where(a => !a.IsSuspended && !a.IsRemoved);
 
     /// <summary>
     /// Properties that may appear in public listings. Properties with no assigned
-    /// agent are still shown — they are not moderated by an agent decision.
+    /// agent are still shown �?" they are not moderated by an agent decision.
     /// </summary>
+    /// <remarks>
+    /// A property owned by a removed agent drops out of public listings, so an
+    /// admin who removes an agent should reassign the listings they want kept
+    /// visible. That is the point of offering reassignment on removal.
+    /// </remarks>
     public static IQueryable<Property> VisibleProperties(this IQueryable<Property> query) =>
-        query.Where(p => p.Agent == null || !p.Agent.IsSuspended);
+        query.Where(p => p.Agent == null || (!p.Agent.IsSuspended && !p.Agent.IsRemoved));
 }

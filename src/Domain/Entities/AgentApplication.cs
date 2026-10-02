@@ -16,10 +16,31 @@ public class AgentApplication : AuditableEntity
     public string UserId { get; set; } = string.Empty;
 
     public string FullName { get; set; } = string.Empty;
-    public string StateOfOrigin { get; set; } = string.Empty;
-    public string ResidentialAddress { get; set; } = string.Empty;
-    public string LocalGovernmentArea { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+
+    /// <summary>Date of birth, date-only. Null only for rows written before this field existed.</summary>
+    public DateTime? DateOfBirth { get; set; }
+
+    public string StateOfOrigin { get; set; } = string.Empty;
+    public string LocalGovernmentArea { get; set; } = string.Empty;
+    public string ResidentialAddress { get; set; } = string.Empty;
+
+    /// <summary>
+    /// National Identification Number, stored as the applicant typed it apart from
+    /// surrounding whitespace.
+    /// </summary>
+    /// <remarks>
+    /// TODO: this is a government identifier, so it warrants encryption at rest
+    /// and masking in the admin list. The codebase has no data-protection
+    /// convention to follow yet, so it is stored in the clear for now and only
+    /// ever returned in full to the owning applicant and to admins reviewing the
+    /// specific application. Introduce a protector before this table holds real
+    /// applicants.
+    /// </remarks>
+    public string? NationalIdentityNumber { get; set; }
+
+    /// <summary>Years of prior real-estate experience, as stated by the applicant.</summary>
+    public int? YearsOfExperience { get; set; }
 
     public string? AgencyName { get; set; }
     public string? AdditionalNotes { get; set; }
@@ -30,6 +51,19 @@ public class AgentApplication : AuditableEntity
     public DateTime? ReviewedAt { get; set; }
     public string? ReviewedByAdminId { get; set; }
     public string? RejectionReason { get; set; }
+
+    /// <summary>
+    /// Set when this application becomes <see cref="AgentApplicationStatus.Revoked"/>,
+    /// that is, when the registration it granted is taken away. Kept separate from
+    /// <see cref="RejectionReason"/> because a rejection happens before the person
+    /// ever traded, while a revocation ends a live registration.
+    /// </summary>
+    public string? RevocationReason { get; set; }
+
+    public DateTime? RevokedAt { get; set; }
+
+    /// <summary>The administrator who revoked the registration.</summary>
+    public string? RevokedByAdminId { get; set; }
 
     public AppUser User { get; set; } = null!;
 }

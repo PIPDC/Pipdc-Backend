@@ -23,6 +23,8 @@ public static class DependencyInjection
         services.AddScoped<IAiChatService, AiChatService>();
         services.AddScoped<IAgentService, AgentService>();
         services.AddScoped<IAgentApplicationService, AgentApplicationService>();
+        services.AddScoped<IAgentReportService, AgentReportService>();
+        services.AddScoped<IAgentReviewService, AgentReviewService>();
 
         // Scoped, not singleton: the generator queries IAppDbContext to avoid
         // reissuing a licence number that is already taken, and a DbContext is

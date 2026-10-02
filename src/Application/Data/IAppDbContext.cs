@@ -10,6 +10,10 @@ public interface IAppDbContext
     DbSet<PropertyImage> PropertyImages { get; }
     DbSet<Agent> Agents { get; }
     DbSet<AgentApplication> AgentApplications { get; }
+    DbSet<AgentRegistrationAppeal> AgentRegistrationAppeals { get; }
+    DbSet<AgentApplicationBlock> AgentApplicationBlocks { get; }
+    DbSet<AgentReport> AgentReports { get; }
+    DbSet<AgentReview> AgentReviews { get; }
     DbSet<Enquiry> Enquiries { get; }
     DbSet<Conversation> Conversations { get; }
     DbSet<Message> Messages { get; }
@@ -20,6 +24,7 @@ public interface IAppDbContext
     DbSet<Tag> Tags { get; }
     DbSet<BlogPostTag> BlogPostTags { get; }
     DbSet<Location> Locations { get; }
+    DbSet<AppUser> Users { get; }
     DbSet<SavedProperty> SavedProperties { get; }
     DbSet<AiChatSession> AiChatSessions { get; }
     DbSet<RefreshToken> RefreshTokens { get; }

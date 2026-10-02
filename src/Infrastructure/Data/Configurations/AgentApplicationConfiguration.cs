@@ -33,6 +33,15 @@ public class AgentApplicationConfiguration : IEntityTypeConfiguration<AgentAppli
             .IsRequired()
             .HasMaxLength(20);
 
+        builder.Property(a => a.DateOfBirth)
+            // Date-only, so no time component is persisted. Kept as a plain
+            // date rather than a computed age, so the value the applicant
+            // supplied stays auditable.
+            .HasColumnType("date");
+
+        builder.Property(a => a.NationalIdentityNumber)
+            .HasMaxLength(20);
+
         builder.Property(a => a.AgencyName)
             .HasMaxLength(200);
 
@@ -49,10 +58,20 @@ public class AgentApplicationConfiguration : IEntityTypeConfiguration<AgentAppli
         builder.Property(a => a.RejectionReason)
             .HasMaxLength(1000);
 
+        // Set when a registration granted by this application was revoked, so the
+        // applicant's own page can say why they are no longer an agent.
+        builder.Property(a => a.RevocationReason)
+            .HasMaxLength(1000);
+
+        builder.Property(a => a.RevokedByAdminId)
+            .HasMaxLength(450);
+
         builder.HasIndex(a => a.Status);
 
-        // One user may hold at most one open application at a time. A user can
-        // still reapply after a rejection. PostgreSQL partial index:
+        // Only one open application per account. A Revoked application is not open,
+        // so a removed agent is immediately able to submit a fresh one; that is
+        // exactly the path this filter has to permit. A user can still reapply
+        // after a rejection. PostgreSQL partial index:
         //   CREATE UNIQUE INDEX ... ON "AgentApplications" ("UserId")
         //   WHERE "Status" IN ('Submitted', 'UnderReview');
         builder.HasIndex(a => a.UserId)

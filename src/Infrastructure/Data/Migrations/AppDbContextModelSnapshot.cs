@@ -254,6 +254,9 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsRemoved")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsSuspended")
                         .HasColumnType("boolean");
 
@@ -277,8 +280,28 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<int?>("ReassignedToAgentId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ReinstatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RemovalReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("RemovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RemovedByAdminId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<DateTime?>("SuspendedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SuspendedByAdminId")
+                        .HasColumnType("text");
 
                     b.Property<string>("SuspensionReason")
                         .HasMaxLength(1000)
@@ -304,12 +327,20 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IsRemoved");
+
                     b.HasIndex("IsSuspended");
 
                     b.HasIndex("LicenseNumber")
                         .IsUnique()
                         .HasDatabaseName("IX_Agents_LicenseNumber")
                         .HasFilter("\"LicenseNumber\" IS NOT NULL");
+
+                    b.HasIndex("ReassignedToAgentId");
+
+                    b.HasIndex("RemovedByAdminId");
+
+                    b.HasIndex("SuspendedByAdminId");
 
                     b.HasIndex("UserId")
                         .IsUnique();
@@ -336,6 +367,9 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("DateOfBirth")
+                        .HasColumnType("date");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -345,6 +379,10 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("NationalIdentityNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
@@ -367,10 +405,138 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RevokedByAdminId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<string>("StateOfOrigin")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<int?>("YearsOfExperience")
+                        .HasColumnType("integer");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AgentApplications_UserId_Open")
+                        .HasFilter("\"Status\" IN ('Submitted', 'UnderReview')");
+
+                    b.ToTable("AgentApplications");
+                });
+
+            modelBuilder.Entity("PIPDC.Domain.Entities.AgentApplicationBlock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime?>("LiftedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LiftedByAdminId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LiftedByAdminId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AgentApplicationBlocks_UserId");
+
+                    b.ToTable("AgentApplicationBlocks");
+                });
+
+            modelBuilder.Entity("PIPDC.Domain.Entities.AgentRegistrationAppeal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AgentApplicationId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewedByAdminId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -393,14 +559,139 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AgentApplicationId");
+
                     b.HasIndex("Status");
 
                     b.HasIndex("UserId")
                         .IsUnique()
-                        .HasDatabaseName("IX_AgentApplications_UserId_Open")
+                        .HasDatabaseName("IX_AgentRegistrationAppeals_UserId_Open")
                         .HasFilter("\"Status\" IN ('Submitted', 'UnderReview')");
 
-                    b.ToTable("AgentApplications");
+                    b.ToTable("AgentRegistrationAppeals");
+                });
+
+            modelBuilder.Entity("PIPDC.Domain.Entities.AgentReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AgentId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ReporterUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewedByAdminId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("ReporterUserId");
+
+                    b.HasIndex("ReviewedByAdminId");
+
+                    b.HasIndex("AgentId", "ReporterUserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AgentReports_AgentId_ReporterUserId_Open")
+                        .HasFilter("\"Status\" IN ('Open', 'UnderReview')");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("AgentReports");
+                });
+
+            modelBuilder.Entity("PIPDC.Domain.Entities.AgentReview", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AgentId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ReviewerUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("ReviewerUserId");
+
+                    b.HasIndex("AgentId", "ReviewerUserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AgentReviews_AgentId_ReviewerUserId");
+
+                    b.ToTable("AgentReviews", t =>
+                        {
+                            t.HasCheckConstraint("CK_AgentReviews_Rating_Range", "\"Rating\" >= 1 AND \"Rating\" <= 5");
+                        });
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.AiChatSession", b =>
@@ -467,11 +758,20 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("LocationId")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
@@ -501,6 +801,8 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                         .HasColumnType("character varying(256)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -1853,11 +2155,31 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("PIPDC.Domain.Entities.Agent", b =>
                 {
+                    b.HasOne("PIPDC.Domain.Entities.Agent", "ReassignedToAgent")
+                        .WithMany()
+                        .HasForeignKey("ReassignedToAgentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PIPDC.Domain.Entities.AppUser", "RemovedByAdmin")
+                        .WithMany("AgentsRemoved")
+                        .HasForeignKey("RemovedByAdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PIPDC.Domain.Entities.AppUser", "SuspendedByAdmin")
+                        .WithMany("AgentsSuspended")
+                        .HasForeignKey("SuspendedByAdminId");
+
                     b.HasOne("PIPDC.Domain.Entities.AppUser", "User")
                         .WithOne("Agent")
                         .HasForeignKey("PIPDC.Domain.Entities.Agent", "UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("ReassignedToAgent");
+
+                    b.Navigation("RemovedByAdmin");
+
+                    b.Navigation("SuspendedByAdmin");
 
                     b.Navigation("User");
                 });
@@ -1873,6 +2195,86 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PIPDC.Domain.Entities.AgentApplicationBlock", b =>
+                {
+                    b.HasOne("PIPDC.Domain.Entities.AppUser", "LiftedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("LiftedByAdminId");
+
+                    b.HasOne("PIPDC.Domain.Entities.AppUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LiftedByAdmin");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PIPDC.Domain.Entities.AgentRegistrationAppeal", b =>
+                {
+                    b.HasOne("PIPDC.Domain.Entities.AgentApplication", "AgentApplication")
+                        .WithMany()
+                        .HasForeignKey("AgentApplicationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("PIPDC.Domain.Entities.AppUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AgentApplication");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PIPDC.Domain.Entities.AgentReport", b =>
+                {
+                    b.HasOne("PIPDC.Domain.Entities.Agent", "Agent")
+                        .WithMany("Reports")
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PIPDC.Domain.Entities.AppUser", "Reporter")
+                        .WithMany("SubmittedAgentReports")
+                        .HasForeignKey("ReporterUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PIPDC.Domain.Entities.AppUser", "ReviewedByAdmin")
+                        .WithMany("TriagedAgentReports")
+                        .HasForeignKey("ReviewedByAdminId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Agent");
+
+                    b.Navigation("Reporter");
+
+                    b.Navigation("ReviewedByAdmin");
+                });
+
+            modelBuilder.Entity("PIPDC.Domain.Entities.AgentReview", b =>
+                {
+                    b.HasOne("PIPDC.Domain.Entities.Agent", "Agent")
+                        .WithMany("Reviews")
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PIPDC.Domain.Entities.AppUser", "Reviewer")
+                        .WithMany("AgentReviews")
+                        .HasForeignKey("ReviewerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Agent");
+
+                    b.Navigation("Reviewer");
+                });
+
             modelBuilder.Entity("PIPDC.Domain.Entities.AiChatSession", b =>
                 {
                     b.HasOne("PIPDC.Domain.Entities.AppUser", "User")
@@ -1882,6 +2284,15 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PIPDC.Domain.Entities.AppUser", b =>
+                {
+                    b.HasOne("PIPDC.Domain.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId");
+
+                    b.Navigation("Location");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.BlogPost", b =>
@@ -2138,6 +2549,10 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.Navigation("Conversations");
 
                     b.Navigation("Properties");
+
+                    b.Navigation("Reports");
+
+                    b.Navigation("Reviews");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.AppUser", b =>
@@ -2145,6 +2560,12 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.Navigation("Agent");
 
                     b.Navigation("AgentApplications");
+
+                    b.Navigation("AgentReviews");
+
+                    b.Navigation("AgentsRemoved");
+
+                    b.Navigation("AgentsSuspended");
 
                     b.Navigation("AiChatSessions");
 
@@ -2155,6 +2576,10 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.Navigation("Messages");
 
                     b.Navigation("SavedProperties");
+
+                    b.Navigation("SubmittedAgentReports");
+
+                    b.Navigation("TriagedAgentReports");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.BlogPost", b =>

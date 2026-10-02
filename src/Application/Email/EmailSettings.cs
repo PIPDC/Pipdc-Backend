@@ -17,4 +17,16 @@ public sealed class EmailSettings
     /// a development address.
     /// </summary>
     public string ContactRecipient { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Address notified when a new agent application is submitted, so the review
+    /// queue does not go unnoticed until someone happens to open the dashboard.
+    /// Falls back to <see cref="ContactRecipient"/> when empty, so a deployment
+    /// that only configures the contact address still notifies someone.
+    /// </summary>
+    public string AgentApplicationsRecipient { get; set; } = string.Empty;
+
+    /// <summary>The address to notify about new agent applications.</summary>
+    public string ResolveAgentApplicationsRecipient() =>
+        string.IsNullOrWhiteSpace(AgentApplicationsRecipient) ? ContactRecipient : AgentApplicationsRecipient;
 }

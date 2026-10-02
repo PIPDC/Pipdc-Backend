@@ -478,6 +478,173 @@ public static class DevelopmentSeeder
         }
 
         await dbContext.SaveChangesAsync();
+
+        await SeedAgentTrustAndSafetyAsync(userManager, dbContext, seedPassword, agents, admin);
+    }
+
+    /// <summary>
+    /// Seeds client reviews and agent reports so the trust-and-safety surfaces
+    /// (agent profile reviews, the admin moderation queue, and a reporter's own
+    /// report history) have data to render. Reviewers are ordinary client
+    /// accounts, created only if missing, and everything is idempotent: the
+    /// unique indexes on (AgentId, ReviewerUserId) and the open-report index are
+    /// checked before inserting.
+    /// </summary>
+    private static async Task SeedAgentTrustAndSafetyAsync(
+        UserManager<AppUser> userManager,
+        AppDbContext dbContext,
+        string seedPassword,
+        List<Agent> agents,
+        AppUser admin)
+    {
+        if (agents.Count == 0)
+            return;
+
+        var now = DateTime.UtcNow;
+
+        // Client accounts used as reviewers and reporters. They must not be agent
+        // accounts, because the API rejects self-review.
+        var clients = new[]
+        {
+            ("Bulus", "Tersoo", "bulus.tersoo@example.com"),
+            ("Nanfear", "Doris", "nanfear.doris@example.com"),
+            ("Ishaya", "Rita", "ishaya.rita@example.com"),
+            ("Monday", "Emmanuel", "monday.emmanuel@example.com"),
+        };
+
+        var clientUsers = new Dictionary<string, AppUser>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (first, last, email) in clients)
+        {
+            var user = await userManager.FindByEmailAsync(email);
+            if (user is null)
+            {
+                user = new AppUser
+                {
+                    UserName = email,
+                    Email = email,
+                    FirstName = first,
+                    LastName = last,
+                    EmailConfirmed = true,
+                    CreatedAt = now.AddDays(-45)
+                };
+
+                var result = await userManager.CreateAsync(user, seedPassword);
+                if (!result.Succeeded)
+                    throw new InvalidOperationException(
+                        $"Failed to seed review client {email}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+
+                await userManager.AddToRoleAsync(user, Roles.User);
+            }
+
+            clientUsers[email] = user;
+        }
+
+        var reviewerPool = clientUsers.Values.ToList();
+
+        // Reviews. Ratings are spread so the directory average is not uniform.
+        var reviewPlan = new (int AgentIndex, int ReviewerIndex, int Rating, string Comment)[]
+        {
+            (0, 0, 5, "Nankin walked us through every document before we paid a naira. Signed in three weeks, no surprises."),
+            (0, 1, 4, "Very responsive and honest about the state of the building. Only reason it is not five stars is that inspection took a few days to schedule."),
+            (0, 2, 5, "Handled a contested title issue on our family land and saved us from a bad purchase. Genuinely expert."),
+            (1, 0, 4, "Grace found us a suitable office space within our budget. Follow-up after signing was prompt."),
+            (1, 3, 5, "Professional and patient while explaining the lease terms to a first-time commercial tenant."),
+            (2, 1, 3, "Helpful over the phone, but the site visit was rescheduled twice before it happened."),
+            (3, 2, 5, "Aisha made the viewing easy for tenants who could only come at weekends. Excellent communication."),
+            (4, 0, 5, "Showed us four estates in one day and was transparent about which roads were still unmetered."),
+            (5, 3, 4, "Maryam explained the purchase steps in plain language. No pressure to decide quickly."),
+        };
+
+        foreach (var (agentIndex, reviewerIndex, rating, comment) in reviewPlan)
+        {
+            if (agentIndex >= agents.Count)
+                continue;
+
+            var agent = agents[agentIndex];
+            var reviewer = reviewerPool[reviewerIndex];
+
+            // The reviewer must not own the agent profile.
+            if (string.Equals(agent.UserId, reviewer.Id, StringComparison.Ordinal))
+                continue;
+
+            var already = await dbContext.AgentReviews
+                .AnyAsync(r => r.AgentId == agent.Id && r.ReviewerUserId == reviewer.Id);
+
+            if (already)
+                continue;
+
+            dbContext.AgentReviews.Add(new AgentReview
+            {
+                AgentId = agent.Id,
+                ReviewerUserId = reviewer.Id,
+                Rating = rating,
+                Comment = comment,
+                CreatedAt = now.AddDays(-30 + agentIndex),
+                UpdatedAt = now.AddDays(-30 + agentIndex)
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
+
+        // Reports, one per reporter/agent, in a spread of statuses so the
+        // moderation queue filters and the reporter's own history both have
+        // something to show.
+        var reportPlan = new (int AgentIndex, int ReporterIndex, AgentReportReason Reason, string Description, AgentReportStatus Status, string? Resolution)[]
+        {
+            (2, 0, AgentReportReason.FalseListing,
+                "The plot in Rayfield was advertised as having a signed survey and a perimeter wall. On inspection the wall was unfinished and I was shown a different document when I asked to see the original.",
+                AgentReportStatus.Open, null),
+            (3, 1, AgentReportReason.UnprofessionalConduct,
+                "An agent on this account told me a property had been sold before I could book a viewing, which was not true. I lost the rental I had arranged.",
+                AgentReportStatus.UnderReview, null),
+            (0, 2, AgentReportReason.Harassment,
+                "Received repeated messages early in the morning and at night about a viewing that had already been cancelled. I had to ask a friend to respond for me.",
+                AgentReportStatus.Resolved,
+                "Spoke with the agent and issued a written warning about contact hours. No further contact after the report was filed."),
+            (4, 3, AgentReportReason.PropertyNotAsAdvertised,
+                "The listing said the generator was included with the property. It was not, and the agent repeated that it was included after I asked twice.",
+                AgentReportStatus.Dismissed,
+                "Reviewed the listing copy and the message history. The generator was advertised as available separately, which the agent confirmed was a listing error. Corrected with the client and no further action required."),
+            (1, 0, AgentReportReason.Other,
+                "Requesting clarification on a commercial plot I enquired about last month. Not urgent, mainly to check the process.",
+                AgentReportStatus.Open, null),
+        };
+
+        foreach (var (agentIndex, reporterIndex, reason, description, status, resolution) in reportPlan)
+        {
+            if (agentIndex >= agents.Count)
+                continue;
+
+            var agent = agents[agentIndex];
+            var reporter = clientUsers.Values.ElementAt(reporterIndex % clientUsers.Count);
+
+            if (string.Equals(agent.UserId, reporter.Id, StringComparison.Ordinal))
+                continue;
+
+            var already = await dbContext.AgentReports
+                .AnyAsync(r => r.AgentId == agent.Id && r.ReporterUserId == reporter.Id);
+
+            if (already)
+                continue;
+
+            var filed = now.AddDays(-12 + agentIndex);
+
+            dbContext.AgentReports.Add(new AgentReport
+            {
+                AgentId = agent.Id,
+                ReporterUserId = reporter.Id,
+                Reason = reason,
+                Description = description,
+                Status = status,
+                CreatedAt = filed,
+                UpdatedAt = filed,
+                ReviewedAt = status is AgentReportStatus.Resolved or AgentReportStatus.Dismissed ? filed.AddDays(2) : null,
+                ReviewedByAdminId = status is AgentReportStatus.Resolved or AgentReportStatus.Dismissed ? admin.Id : null,
+                ResolutionNote = resolution
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
     }
 
     private static async Task<AppUser> EnsureUserAsync(
