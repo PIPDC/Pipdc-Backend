@@ -17,7 +17,7 @@ public class MessageService(
     IOptions<GmailApiSettings> smtpOptions,
     ILogger<MessageService> logger) : IMessageService
 {
-    public async Task<Result<MessageDto>> SendAsync(int conversationId, SendMessageRequest request, string currentUserId, CancellationToken ct)
+    public async Task<Result<MessageDto>> SendAsync(int conversationId, SendMessageRequest request, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Content))
             return Result<MessageDto>.Failure(
@@ -29,10 +29,13 @@ public class MessageService(
             return Result<MessageDto>.Failure(
                 Error.NotFound("conversation.notfound", $"Conversation with id {conversationId} was not found."));
 
-        // Only participants may send. Admins can view but are not sender participants.
-        if (!await ConversationAuthorization.IsParticipantAsync(dbContext, conversation, currentUserId, ct))
-            return Result<MessageDto>.Failure(
-                Error.Forbidden("message.forbidden", "You cannot send a message in this conversation."));
+        // Participants may send, plus the administrator who owns an escalated
+        // conversation. Once an admin owns the case the original agent is
+        // read-only, so two people cannot overwrite each other in the client's
+        // thread. The agent is told why, so the block is never silent.
+        var sendAllowed = await ConversationAuthorization.AuthorizeSendAsync(dbContext, conversation, currentUserId, currentUserRoles, ct);
+        if (sendAllowed.IsFailure)
+            return Result<MessageDto>.Failure(sendAllowed.Error);
 
         var now = DateTime.UtcNow;
 
@@ -67,7 +70,7 @@ public class MessageService(
     // Sends a message resolved from an Enquiry. If no Conversation exists for the enquiry yet,
     // the Conversation, first Message, and LastMessageAt are created atomically in a single
     // SaveChanges (one implicit database transaction). Opening the messaging UI never calls this.
-    public async Task<Result<FirstMessageResultDto>> SendByEnquiryAsync(int enquiryId, SendMessageRequest request, string currentUserId, CancellationToken ct)
+    public async Task<Result<FirstMessageResultDto>> SendByEnquiryAsync(int enquiryId, SendMessageRequest request, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Content))
             return Result<FirstMessageResultDto>.Failure(
@@ -97,6 +100,17 @@ public class MessageService(
 
         var content = request.Content.Trim();
         var conversation = await dbContext.Conversations.FirstOrDefaultAsync(c => c.EnquiryId == enquiryId, ct);
+
+        // A conversation that already exists carries escalation state, so the same
+        // ownership rule applies whether the client replies from the enquiry screen
+        // or from the conversation itself. Without this, the enquiry entry point
+        // would be a way around the "administrator owns this case" block.
+        if (conversation is not null)
+        {
+            var sendAllowed = await ConversationAuthorization.AuthorizeSendAsync(dbContext, conversation, currentUserId, currentUserRoles, ct);
+            if (sendAllowed.IsFailure)
+                return Result<FirstMessageResultDto>.Failure(sendAllowed.Error);
+        }
 
         Message message;
         var attemptedCreate = conversation is null;

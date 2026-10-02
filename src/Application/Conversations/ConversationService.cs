@@ -38,8 +38,13 @@ public class ConversationService(IAppDbContext dbContext) : IConversationService
             conversationDto = await ConversationProjections.SingleAsync(dbContext, existingId, currentUserId, ct);
 
         var agent = enquiry.Property.Agent is not null
-            ? new ConversationAgentDto(enquiry.Property.AgentId, enquiry.Property.Agent.User.FullName, enquiry.Property.Agent.AgencyName, enquiry.Property.Agent.PhotoUrl)
-            : new ConversationAgentDto(0, string.Empty, string.Empty, null);
+            ? new ConversationAgentDto(
+                enquiry.Property.AgentId,
+                enquiry.Property.Agent.UserId,
+                enquiry.Property.Agent.User.FullName,
+                enquiry.Property.Agent.AgencyName,
+                enquiry.Property.Agent.PhotoUrl)
+            : new ConversationAgentDto(0, null, string.Empty, string.Empty, null);
 
         return Result<EnquiryConversationStateDto>.Success(new EnquiryConversationStateDto(
             enquiryId,

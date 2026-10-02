@@ -15,4 +15,11 @@ public class ConversationQueryParameters
         get => _pageSize;
         set => _pageSize = value is < 1 ? 10 : value > 100 ? 100 : value;
     }
+
+    /// <summary>
+    /// Optional escalation status filter for the admin queue. Left null it shows
+    /// every non-active conversation, which is the useful default. Values that do
+    /// not parse are ignored rather than rejected, so a stale bookmark still loads.
+    /// </summary>
+    public string? Status { get; set; }
 }

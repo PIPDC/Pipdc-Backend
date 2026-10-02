@@ -119,7 +119,12 @@ public record AgentApplicationReviewResponse(
     string? AdditionalNotes,
     DateTime? ReviewedAt,
     string? ReviewedByAdminId,
-    string? RejectionReason);
+    string? RejectionReason,
+    // Carried on the admin projection so a revoked application shows why. The
+    // applicant-facing response omits these on purpose; an admin cannot review
+    // a revocation without the reason for it.
+    string? RevocationReason,
+    DateTime? RevokedAt);
 
 /// <summary>A page of applications plus the total count matching the filter.</summary>
 public record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int PageSize);
