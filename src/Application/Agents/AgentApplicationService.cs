@@ -1271,7 +1271,9 @@ public class AgentApplicationService(
         a.AdditionalNotes,
         a.ReviewedAt,
         a.ReviewedByAdminId,
-        a.RejectionReason);
+        a.RejectionReason,
+        a.RevocationReason,
+        a.RevokedAt);
 
     private static AgentApplicationResponse Map(AgentApplication a) => new(
         a.Id,
