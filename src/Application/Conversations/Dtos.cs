@@ -9,6 +9,11 @@ public record ConversationClientDto(
 
 public record ConversationAgentDto(
     int? AgentId,
+    // The agent's own user id. Exposed so the client can decide whether the
+    // viewer is the handling agent, instead of guessing from a display name.
+    // The server still authorizes the escalation, so this is a UI affordance
+    // only, never a permission.
+    string? UserId,
     string FullName,
     string AgencyName,
     string? PhotoUrl);
@@ -28,7 +33,22 @@ public record ConversationDto(
     int MessageCount,
     int UnreadCount,
     DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    DateTime? UpdatedAt,
+    // Escalation state. Null on the wire only if an older server omitted it; the
+    // frontend treats a missing value as Active.
+    string? EscalationStatus = null,
+    string? EscalationReason = null,
+    DateTime? EscalatedAt = null,
+    string? EscalatedByName = null,
+    string? AssignedAdminId = null,
+    string? AssignedAdminName = null,
+    DateTime? AssignedAt = null,
+    DateTime? ResolvedAt = null,
+    string? ResolvedByName = null);
+
+/// <summary>Reason an agent is handing a conversation to PIPDC. Required so the admin knows what happened.</summary>
+public record EscalateConversationRequest(
+    [Required, MaxLength(1000), MinLength(10)] string Reason);
 
 public record MessageDto(
     int Id,

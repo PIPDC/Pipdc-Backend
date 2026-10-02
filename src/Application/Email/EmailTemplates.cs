@@ -9,6 +9,15 @@ public static class EmailTemplates
 {
     private const string BrandName = "PIPDC";
 
+    public static EmailMessage DevelopmentStatusChanged(string recipientEmail, string recipientName, string projectName, string previousStatus, string newStatus, string baseUrl)
+    {
+        var ctaUrl = $"{baseUrl}/developments";
+        var subject = $"{projectName} status changed to {newStatus}";
+        var html = $"<div style=\"font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333\"><h2 style=\"color:#1a5276\">Development Project Update</h2><p>Hi <strong>{Esc(recipientName)}</strong>,</p><p><strong>{Esc(projectName)}</strong> changed from <strong>{Esc(previousStatus)}</strong> to <strong>{Esc(newStatus)}</strong>.</p><a href=\"{ctaUrl}\">View development projects</a><p style=\"font-size:12px;color:#888\">This is an automated notification from {BrandName}.</p></div>";
+        var text = $"{projectName} changed from {previousStatus} to {newStatus}. View projects: {ctaUrl}";
+        return new EmailMessage(recipientEmail, subject, html, recipientName, text) { IncludeUnsubscribe = false };
+    }
+
     // ── 1. New enquiry → Agent ───────────────────────────────────────────
 
     public static EmailMessage NewEnquiryToAgent(
@@ -985,6 +994,164 @@ public static class EmailTemplates
     }
 
     // ── Helper ───────────────────────────────────────────────────────────
+
+    // ---- Batch 6: concierge-style escalation of a client conversation to PIPDC ----
+
+    public static EmailMessage ConversationEscalatedToAdmin(
+        string recipientEmail,
+        string clientName,
+        string agentName,
+        string propertyTitle,
+        string escalationReason,
+        string baseUrl)
+    {
+        var queueUrl = $"{baseUrl}/dashboard/escalations";
+
+        var html = $"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+          <h2 style="color:#1a5276">A client conversation was escalated</h2>
+          <p><strong>{Esc(agentName)}</strong> handed a conversation to {BrandName} for help.</p>
+          <table style="margin:16px 0;font-size:14px;border-collapse:collapse">
+            <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Client</td>
+                <td style="padding:4px 0">{Esc(clientName)}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Handled by</td>
+                <td style="padding:4px 0">{Esc(agentName)}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Property</td>
+                <td style="padding:4px 0">{Esc(propertyTitle)}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Reason</td>
+                <td style="padding:4px 0">{Esc(escalationReason)}</td></tr>
+          </table>
+          <a href="{queueUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">Open the escalation queue</a>
+          <p style="font-size:12px;color:#888;margin-top:24px">This is an automated notification from {BrandName}.</p>
+        </div>
+        """;
+
+        var text = $"""
+        A client conversation was escalated
+
+        {agentName} handed a conversation to {BrandName} for help.
+
+        Client: {clientName}
+        Handled by: {agentName}
+        Property: {propertyTitle}
+        Reason: {escalationReason}
+
+        Open the escalation queue: {queueUrl}
+        """;
+
+        return new EmailMessage(recipientEmail, $"Escalated conversation: {clientName}", html, "Review Team", text)
+        {
+            IncludeUnsubscribe = false
+        };
+    }
+
+    public static EmailMessage ConversationEscalatedToClient(
+        string clientEmail,
+        string clientName,
+        string agentName,
+        string propertyTitle,
+        string baseUrl)
+    {
+        var messagesUrl = $"{baseUrl}/messages";
+
+        var html = $"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+          <h2 style="color:#1a5276">We are looking into your enquiry</h2>
+          <p>Hi {Esc(clientName)},</p>
+          <p>Your agent <strong>{Esc(agentName)}</strong> has passed your conversation about
+             &ldquo;{Esc(propertyTitle)}&rdquo; to the {BrandName} team, who will take it from here.</p>
+          <p>You do not need to do anything. You can still reply in the conversation, and the full
+             history stays with you.</p>
+          <a href="{messagesUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">View your messages</a>
+          <p style="font-size:12px;color:#888;margin-top:24px">This is an automated notification from {BrandName}.</p>
+        </div>
+        """;
+
+        var text = $"""
+        We are looking into your enquiry
+
+        Hi {clientName},
+
+        Your agent {agentName} has passed your conversation about "{propertyTitle}" to the {BrandName} team, who will take it from here.
+
+        You do not need to do anything. You can still reply in the conversation, and the full history stays with you.
+
+        View your messages: {messagesUrl}
+        """;
+
+        return new EmailMessage(clientEmail, $"We are looking into your enquiry about {propertyTitle}", html, clientName, text)
+        {
+            IncludeUnsubscribe = false
+        };
+    }
+
+    public static EmailMessage ConversationAssignedToAdmin(
+        string clientEmail,
+        string clientName,
+        string adminName,
+        string propertyTitle)
+    {
+        var html = $"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+          <h2 style="color:#1a5276">An administrator is now handling your enquiry</h2>
+          <p>Hi {Esc(clientName)},</p>
+          <p><strong>{Esc(adminName)}</strong> from {BrandName} has taken over your conversation about
+             &ldquo;{Esc(propertyTitle)}&rdquo; and will reply to you here.</p>
+          <p>Your original agent stays copied on the conversation, so nothing is lost.</p>
+          <p style="font-size:12px;color:#888;margin-top:24px">This is an automated notification from {BrandName}.</p>
+        </div>
+        """;
+
+        var text = $"""
+        An administrator is now handling your enquiry
+
+        Hi {clientName},
+
+        {adminName} from {BrandName} has taken over your conversation about "{propertyTitle}" and will reply to you here.
+
+        Your original agent stays copied on the conversation, so nothing is lost.
+        """;
+
+        return new EmailMessage(clientEmail, $"An administrator is handling your enquiry about {propertyTitle}", html, clientName, text)
+        {
+            IncludeUnsubscribe = false
+        };
+    }
+
+    public static EmailMessage ConversationEscalationResolved(
+        string clientEmail,
+        string clientName,
+        string adminName,
+        string propertyTitle)
+    {
+        var html = $"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+          <h2 style="color:#1a5276">Your enquiry has been resolved</h2>
+          <p>Hi {Esc(clientName)},</p>
+          <p><strong>{Esc(adminName)}</strong> has marked your conversation about
+             &ldquo;{Esc(propertyTitle)}&rdquo; as resolved.</p>
+          <p>The conversation is closed to new replies, but you can still read the whole history.</p>
+          <p style="font-size:12px;color:#888;margin-top:24px">This is an automated notification from {BrandName}.</p>
+        </div>
+        """;
+
+        var text = $"""
+        Your enquiry has been resolved
+
+        Hi {clientName},
+
+        {adminName} has marked your conversation about "{propertyTitle}" as resolved.
+
+        The conversation is closed to new replies, but you can still read the whole history.
+        """;
+
+        return new EmailMessage(clientEmail, $"Resolved: your enquiry about {propertyTitle}", html, clientName, text)
+        {
+            IncludeUnsubscribe = false
+        };
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string Esc(string value) =>
         System.Net.WebUtility.HtmlEncode(value);

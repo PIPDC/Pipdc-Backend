@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using PIPDC.Domain.Auth;
 using PIPDC.Domain.Entities;
 
@@ -34,6 +35,14 @@ public interface IAppDbContext
     DbSet<DevelopmentProjectImage> DevelopmentProjectImages { get; }
     DbSet<DevelopmentTracking> DevelopmentTrackings { get; }
     DbSet<IdempotencyRecord> IdempotencyRecords { get; }
+    DbSet<Notification> Notifications { get; }
+
+    /// <summary>
+    /// Exposed so a service that must make several writes land together can open a
+    /// real transaction. Recording a sale or lease is one such case: the new record
+    /// and the property's status change are only correct together.
+    /// </summary>
+    DatabaseFacade Database { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

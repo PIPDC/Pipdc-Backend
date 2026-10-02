@@ -68,6 +68,17 @@ public class Property : AuditableEntity
     public ICollection<PropertyImage> PropertyImages { get; set; } = [];
     public ICollection<Enquiry> Enquiries { get; set; } = [];
     public ICollection<SavedProperty> SavedByUsers { get; set; } = [];
+    /// <summary>
+    /// A property is sold at most once in its lifetime, so the sale side stays
+    /// one-to-one. Batch 7 relies on this to make double-selling impossible.
+    /// </summary>
     public SaleRecord? SaleRecord { get; set; }
-    public LeaseRecord? LeaseRecord { get; set; }
+
+    /// <summary>
+    /// A property is let many times over its life, so leases are one-to-many and
+    /// the current tenancy is the newest non-terminated row. The previous
+    /// one-to-one shape could only ever hold a single lease, which made lease
+    /// history impossible to record at all.
+    /// </summary>
+    public ICollection<LeaseRecord> LeaseRecords { get; set; } = [];
 }

@@ -11,6 +11,7 @@ using PIPDC.Application.Locations;
 using PIPDC.Application.Properties;
 using PIPDC.Application.SavedProperties;
 using PIPDC.Application.Services;
+using PIPDC.Application.Transactions;
 using PIPDC.Application.Users;
 
 namespace PIPDC.Application;
@@ -20,6 +21,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<IPropertyService, PropertyService>();
+    services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IAiChatService, AiChatService>();
         services.AddScoped<IAgentService, AgentService>();
         services.AddScoped<IAgentApplicationService, AgentApplicationService>();
@@ -34,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IEnquiryService, EnquiryService>();
         services.AddScoped<ISavedPropertyService, SavedPropertyService>();
         services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<IConversationEscalationService, ConversationEscalationService>();
         services.AddScoped<IMessageService, MessageService>();
         services.AddScoped<IBlogService, BlogService>();
         services.AddScoped<ICategoryService, CategoryService>();

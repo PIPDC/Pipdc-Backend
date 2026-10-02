@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PIPDC.Infrastructure.Data;
@@ -12,9 +13,11 @@ using PIPDC.Infrastructure.Data;
 namespace PIPDC.src.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261002060132_Batch6_7_ConciergeEscalationAndTransactions")]
+    partial class Batch6_7_ConciergeEscalationAndTransactions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1080,9 +1083,6 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.Property<int>("ProgressPercentage")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("PropertyId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1106,9 +1106,6 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.HasIndex("Featured");
 
                     b.HasIndex("LocationRefId");
-
-                    b.HasIndex("PropertyId")
-                        .IsUnique();
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -1868,56 +1865,6 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.ToTable("Messages");
                 });
 
-            modelBuilder.Entity("PIPDC.Domain.Entities.Notification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeduplicationKey")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Link")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId", "DeduplicationKey")
-                        .IsUnique();
-
-                    b.ToTable("Notifications");
-                });
-
             modelBuilder.Entity("PIPDC.Domain.Entities.Property", b =>
                 {
                     b.Property<int>("Id")
@@ -2515,14 +2462,7 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                         .HasForeignKey("LocationRefId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("PIPDC.Domain.Entities.Property", "Property")
-                        .WithOne()
-                        .HasForeignKey("PIPDC.Domain.Entities.DevelopmentProject", "PropertyId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("LocationRef");
-
-                    b.Navigation("Property");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.DevelopmentProjectImage", b =>
@@ -2662,17 +2602,6 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.Navigation("Conversation");
 
                     b.Navigation("Sender");
-                });
-
-            modelBuilder.Entity("PIPDC.Domain.Entities.Notification", b =>
-                {
-                    b.HasOne("PIPDC.Domain.Entities.AppUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.Property", b =>
