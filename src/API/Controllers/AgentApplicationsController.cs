@@ -48,6 +48,19 @@ public class AgentApplicationsController(IAgentApplicationService applicationSer
         return result.ToActionResult();
     }
 
+    /// <summary>
+    /// Withdraws the caller's own rejected application so they can reapply from
+    /// scratch. Scoped to the token, so it can only ever delete the caller's own
+    /// row, and refuses anything not in the Rejected state.
+    /// </summary>
+    [HttpDelete("mine")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> WithdrawRejected(CancellationToken ct)
+    {
+        var result = await applicationService.WithdrawRejectedAsync(CurrentUserId, ct);
+        return result.ToActionResult();
+    }
+
     // ── Admin review ─────────────────────────────────────────────────────
     //
     // Every route below is admin-only. The applicant surface above is the only
@@ -108,6 +121,120 @@ public class AgentApplicationsController(IAgentApplicationService applicationSer
     public async Task<IActionResult> Reject(int id, [FromBody] RejectAgentApplicationRequest request, CancellationToken ct)
     {
         var result = await applicationService.RejectAsync(id, CurrentUserId, request.Reason, ct);
+        return result.ToActionResult();
+    }
+
+    /// <summary>Rejects an application and bars the account from applying again.</summary>
+    /// <remarks>
+    /// The bar is permanent and separate from the rejection, so it can only be
+    /// released by an explicit lift. The applicant is emailed both facts.
+    /// </remarks>
+    [HttpPost("{id:int}/block")]
+    [Authorize(Roles = Roles.Admin)]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> Block(int id, [FromBody] BlockAgentApplicationRequest request, CancellationToken ct)
+    {
+        var result = await applicationService.BlockFromApplyingAsync(id, CurrentUserId, request.Reason, ct);
+        return result.ToActionResult();
+    }
+
+    // ── Eligibility, appeals and bars ────────────────────────────────────
+
+    /// <summary>
+    /// Whether the caller may submit an application right now, and why not. The
+    /// frontend uses this to hide the form instead of letting the user fill it in
+    /// only to be refused.
+    /// </summary>
+    [HttpGet("eligibility")]
+    public async Task<IActionResult> GetEligibility(CancellationToken ct)
+    {
+        var result = await applicationService.GetEligibilityAsync(CurrentUserId, ct);
+        return result.ToActionResult();
+    }
+
+    [HttpGet("appeals/mine")]
+    public async Task<IActionResult> GetMyAppeals(CancellationToken ct)
+    {
+        var result = await applicationService.GetMyAppealsAsync(CurrentUserId, ct);
+        return result.ToActionResult();
+    }
+
+    /// <summary>
+    /// Appeals the revocation of the caller's own registration. Scoped to the
+    /// token: the application id in the body is checked to belong to the caller
+    /// rather than trusted as an ownership claim.
+    /// </summary>
+    [HttpPost("appeals")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> SubmitAppeal([FromBody] SubmitAgentAppealRequest request, CancellationToken ct)
+    {
+        var result = await applicationService.SubmitAppealAsync(CurrentUserId, request, ct);
+        return result.ToActionResult();
+    }
+
+    [HttpGet("appeals")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> ListAppeals(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] AgentAppealStatus? status = null,
+        CancellationToken ct = default)
+    {
+        var result = await applicationService.ListAppealsAsync(
+            new AgentAppealQuery(page, pageSize, status), ct);
+
+        return result.ToActionResult();
+    }
+
+    [HttpGet("appeals/{id:int}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> GetAppeal(int id, CancellationToken ct)
+    {
+        var result = await applicationService.GetAppealAsync(id, ct);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("appeals/{id:int}/start-review")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> StartAppealReview(int id, CancellationToken ct)
+    {
+        var result = await applicationService.StartAppealReviewAsync(id, CurrentUserId, ct);
+        return result.ToActionResult();
+    }
+
+    /// <summary>
+    /// Decides an appeal. An upheld appeal reinstates the same registration and
+    /// restores the Agent role; a refused one does not, and the applicant is told
+    /// whether they may reapply.
+    /// </summary>
+    [HttpPost("appeals/{id:int}/decide")]
+    [Authorize(Roles = Roles.Admin)]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> DecideAppeal(
+        int id,
+        [FromBody] ResolveAgentAppealRequest request,
+        CancellationToken ct)
+    {
+        var result = await applicationService.ResolveAppealAsync(id, CurrentUserId, request, ct);
+        return result.ToActionResult();
+    }
+
+    /// <summary>Lists the accounts barred from applying, lifted ones included.</summary>
+    [HttpGet("blocks")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> ListBlocks(CancellationToken ct)
+    {
+        var result = await applicationService.ListApplicationBlocksAsync(ct);
+        return result.ToActionResult();
+    }
+
+    /// <summary>Lifts a permanent bar, letting the account apply again.</summary>
+    [HttpPost("blocks/{userId}/lift")]
+    [Authorize(Roles = Roles.Admin)]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> LiftBlock(string userId, CancellationToken ct)
+    {
+        var result = await applicationService.LiftApplicationBlockAsync(userId, CurrentUserId, ct);
         return result.ToActionResult();
     }
 }

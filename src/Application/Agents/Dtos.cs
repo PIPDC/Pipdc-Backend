@@ -19,7 +19,12 @@ public record AgentDto(
     string LastName,
     DateTime CreatedAt,
     DateTime? UpdatedAt,
-    int PropertyCount);
+    int PropertyCount,
+    double? AverageRating,
+    int ReviewCount,
+    bool IsSuspended,
+    DateTime? SuspendedAt,
+    string? SuspensionReason);
 
 public record CreateAgentRequest(
     [Required, EmailAddress, MaxLength(256)] string Email,
@@ -61,4 +66,39 @@ public record AgentSummaryDto(
     DateTime? UpdatedAt,
     int PropertyCount,
     int EnquiryCount,
-    int ConversationCount);
+    int ConversationCount,
+    double? AverageRating,
+    int ReviewCount,
+    int OpenReportCount,
+    bool IsSuspended,
+    DateTime? SuspendedAt,
+    string? SuspensionReason,
+    bool IsRemoved = false,
+    DateTime? RemovedAt = null,
+    string? RemovalReason = null,
+    int? ReassignedToAgentId = null);
+
+/// <summary>
+/// Admin request to revoke an agent registration.
+/// </summary>
+/// <remarks>
+/// <see cref="ReassignToAgentId"/> is optional. When supplied, the removed agent's
+/// listings and open enquiries move to that agent so clients are not stranded;
+/// when omitted the work stays with the removed agent and drops out of public view.
+/// </remarks>
+public record RemoveAgentRequest(
+    [Required(ErrorMessage = "A reason is required so the agent can be told why.")]
+    [StringLength(1000, MinimumLength = 10, ErrorMessage = "The removal reason must be between 10 and 1000 characters.")]
+    string Reason,
+    int? ReassignToAgentId);
+
+/// <summary>
+/// Outcome of a removal, so the admin sees what actually happened to the work.
+/// </summary>
+public record AgentRemovalResult(
+    int AgentId,
+    int PropertiesReassigned,
+    int EnquiriesReassigned,
+    bool Reassigned,
+    bool ApplicationRevoked,
+    string Message);
