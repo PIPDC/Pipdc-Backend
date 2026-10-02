@@ -94,14 +94,17 @@ public class PropertyConfiguration : IEntityTypeConfiguration<Property>
             .HasForeignKey(s => s.PropertyId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // A property can only be sold once ever, so the unique index behind this
+        // one-to-one is also the double-sale guard.
         builder.HasOne(p => p.SaleRecord)
             .WithOne(s => s.Property)
             .HasForeignKey<SaleRecord>(s => s.PropertyId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(p => p.LeaseRecord)
+        // One-to-many, because a property can be re-let after a tenancy ends.
+        builder.HasMany(p => p.LeaseRecords)
             .WithOne(l => l.Property)
-            .HasForeignKey<LeaseRecord>(l => l.PropertyId)
+            .HasForeignKey(l => l.PropertyId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(p => p.Location)

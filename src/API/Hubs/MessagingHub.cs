@@ -23,6 +23,13 @@ public class MessagingHub(IAppDbContext dbContext) : Hub
     // the existing MessageDto; event payloads are never accepted from clients.
     public const string NewMessageEvent = "NewMessage";
 
+    // Server-to-client event for an escalation state change (escalated, claimed,
+    // or resolved). Payload is the existing ConversationDto, so a connected
+    // client updates its banner and composer from the same shape it already
+    // renders. Same hub and same conversation group as NewMessage: escalation is
+    // a change to a conversation, not a separate messaging channel.
+    public const string ConversationEscalationChangedEvent = "ConversationEscalationChanged";
+
     // Join the group conversation:{conversationId}. Joining a group is not
     // itself authorization: the authenticated user is checked against the
     // existing ConversationAuthorization rules before the connection is added.

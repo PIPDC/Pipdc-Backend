@@ -34,7 +34,7 @@ public class MessagesController(IMessageService messageService) : ControllerBase
     [Idempotent]
     public async Task<IActionResult> Send(int conversationId, [FromBody] SendMessageRequest request, CancellationToken ct)
     {
-        var result = await messageService.SendAsync(conversationId, request, CurrentUserId, ct);
+        var result = await messageService.SendAsync(conversationId, request, CurrentUserId, CurrentUserRoles, ct);
 
         if (result.IsFailure)
             return result.ToActionResult();
@@ -48,7 +48,7 @@ public class MessagesController(IMessageService messageService) : ControllerBase
     [Idempotent]
     public async Task<IActionResult> SendByEnquiry(int enquiryId, [FromBody] SendMessageRequest request, CancellationToken ct)
     {
-        var result = await messageService.SendByEnquiryAsync(enquiryId, request, CurrentUserId, ct);
+        var result = await messageService.SendByEnquiryAsync(enquiryId, request, CurrentUserId, CurrentUserRoles, ct);
 
         if (result.IsFailure)
             return result.ToActionResult();

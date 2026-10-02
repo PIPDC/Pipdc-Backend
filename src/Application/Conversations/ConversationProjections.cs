@@ -23,6 +23,7 @@ internal static class ConversationProjections
             c.Client.LastName,
             c.Client.Email ?? string.Empty,
             c.AgentId,
+            c.Agent.UserId,
             c.Agent.User.FirstName,
             c.Agent.User.LastName,
             c.Agent.AgencyName,
@@ -34,20 +35,38 @@ internal static class ConversationProjections
             c.Messages.Count(),
             c.Messages.Count(m => m.SenderUserId != currentUserId && m.ReadAt == null),
             c.CreatedAt,
-            c.UpdatedAt));
+            c.UpdatedAt,
+            c.EscalationStatus.ToString(),
+            c.EscalationReason,
+            c.EscalatedAt,
+            c.EscalatedByUser == null ? null : c.EscalatedByUser.FirstName + " " + c.EscalatedByUser.LastName,
+            c.AssignedAdminId,
+            c.AssignedAdmin == null ? null : c.AssignedAdmin.FirstName + " " + c.AssignedAdmin.LastName,
+            c.AssignedAt,
+            c.ResolvedAt,
+            c.ResolvedByUser == null ? null : c.ResolvedByUser.FirstName + " " + c.ResolvedByUser.LastName));
 
     internal static ConversationDto ToDto(ConversationProjection p) =>
         new(
             p.Id,
             p.EnquiryId,
             new ConversationClientDto(p.ClientUserId, $"{p.ClientFirstName} {p.ClientLastName}".Trim(), p.ClientEmail),
-            new ConversationAgentDto(p.AgentId, $"{p.AgentFirstName} {p.AgentLastName}".Trim(), p.AgentAgencyName, p.AgentPhotoUrl),
+            new ConversationAgentDto(p.AgentId, p.AgentUserId, $"{p.AgentFirstName} {p.AgentLastName}".Trim(), p.AgentAgencyName, p.AgentPhotoUrl),
             new ConversationPropertyDto(p.PropertyId, p.PropertyTitle, p.PropertySlug),
             p.LastMessageAt,
             p.MessageCount,
             p.UnreadCount,
             p.CreatedAt,
-            p.UpdatedAt);
+            p.UpdatedAt,
+            p.EscalationStatus,
+            p.EscalationReason,
+            p.EscalatedAt,
+            p.EscalatedByName,
+            p.AssignedAdminId,
+            p.AssignedAdminName,
+            p.AssignedAt,
+            p.ResolvedAt,
+            p.ResolvedByName);
 
     internal sealed record ConversationProjection(
         int Id,
@@ -57,6 +76,7 @@ internal static class ConversationProjections
         string ClientLastName,
         string ClientEmail,
         int AgentId,
+        string? AgentUserId,
         string AgentFirstName,
         string AgentLastName,
         string AgentAgencyName,
@@ -68,5 +88,14 @@ internal static class ConversationProjections
         int MessageCount,
         int UnreadCount,
         DateTime CreatedAt,
-        DateTime? UpdatedAt);
+        DateTime? UpdatedAt,
+        string EscalationStatus,
+        string? EscalationReason,
+        DateTime? EscalatedAt,
+        string? EscalatedByName,
+        string? AssignedAdminId,
+        string? AssignedAdminName,
+        DateTime? AssignedAt,
+        DateTime? ResolvedAt,
+        string? ResolvedByName);
 }
