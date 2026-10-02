@@ -135,6 +135,7 @@ public class AuthService(
             return Result<CurrentUserDto>.Failure(Error.NotFound("USER_NOT_FOUND", "User not found."));
 
         var roles = await userManager.GetRolesAsync(user);
+        var location = await LoadLocationAsync(user, ct);
 
         return Result<CurrentUserDto>.Success(new CurrentUserDto(
             user.Id,
@@ -143,7 +144,11 @@ public class AuthService(
             user.LastName,
             user.PhoneNumber,
             user.FullName,
-            roles));
+            roles,
+            user.LocationId,
+            location?.Name,
+            location?.Type.ToString(),
+            HasCoordinates(user)));
     }
 
     public async Task<Result<CurrentUserDto>> UpdateProfileAsync(string userId, UpdateProfileRequest request, CancellationToken ct)
@@ -156,9 +161,48 @@ public class AuthService(
         user.LastName = request.LastName.Trim();
         user.PhoneNumber = request.PhoneNumber?.Trim();
 
+        // Batch 5. The area is validated against the real Location hierarchy so a
+        // client cannot invent a location id. Coordinates are range-checked but not
+        // geocoded: the client is the only party that knows them, and they are used
+        // solely to rank public listings for that user.
+        if (request.ClearLocation)
+        {
+            user.LocationId = null;
+            user.Latitude = null;
+            user.Longitude = null;
+        }
+        else if (request.LocationId.HasValue)
+        {
+            var valid = await dbContext.Locations
+                .AnyAsync(l => l.Id == request.LocationId.Value, ct);
+
+            if (!valid)
+                return Result<CurrentUserDto>.Failure(Error.Validation("LOCATION_NOT_FOUND",
+                    "The selected location does not exist."));
+
+            user.LocationId = request.LocationId.Value;
+        }
+
+        if (request.Latitude.HasValue || request.Longitude.HasValue)
+        {
+            if (request.Latitude is < -90 or > 90)
+                return Result<CurrentUserDto>.Failure(Error.Validation("LATITUDE_INVALID",
+                    "Latitude must be between -90 and 90."));
+
+            if (request.Longitude is < -180 or > 180)
+                return Result<CurrentUserDto>.Failure(Error.Validation("LONGITUDE_INVALID",
+                    "Longitude must be between -180 and 180."));
+
+            // A half-supplied pair is meaningless for distance, so it is treated as
+            // "not shared" rather than silently keeping one half.
+            user.Latitude = request.Latitude;
+            user.Longitude = request.Longitude;
+        }
+
         await dbContext.SaveChangesAsync(ct);
 
         var roles = await userManager.GetRolesAsync(user);
+        var location = await LoadLocationAsync(user, ct);
 
         return Result<CurrentUserDto>.Success(new CurrentUserDto(
             user.Id,
@@ -167,8 +211,20 @@ public class AuthService(
             user.LastName,
             user.PhoneNumber,
             user.FullName,
-            roles));
+            roles,
+            user.LocationId,
+            location?.Name,
+            location?.Type.ToString(),
+            HasCoordinates(user)));
     }
+
+    private Task<Location?> LoadLocationAsync(AppUser user, CancellationToken ct) =>
+        user.LocationId is null
+            ? Task.FromResult<Location?>(null)
+            : dbContext.Locations.FirstOrDefaultAsync(l => l.Id == user.LocationId.Value, ct);
+
+    private static bool HasCoordinates(AppUser user) =>
+        user.Latitude.HasValue && user.Longitude.HasValue;
 
     public async Task<Result> ForgotPasswordAsync(string email, CancellationToken ct)
     {
@@ -335,35 +391,17 @@ public class AuthService(
                 return Result.Failure(Error.Conflict("ADMIN_REQUIRED", "You cannot remove the last admin user."));
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-
+        // Agent status belongs to the lifecycle in AgentService, not to a generic role
+        // strip. Handling it here used to hard-delete the Agent row while leaving the
+        // application Approved, stranding the user with no agent record and no route to
+        // appeal. Refuse, and point the caller at the endpoint that records a reason.
         if (string.Equals(request.Role, Roles.Agent, StringComparison.OrdinalIgnoreCase))
         {
-            var agent = await dbContext.Agents
-                .Include(a => a.Properties)
-                .FirstOrDefaultAsync(a => a.UserId == user.Id, ct);
-
-            if (agent is not null)
-            {
-                if (agent.Properties.Count > 0)
-                {
-                    var adminAgent = await GetOrCreateAdminAgentAsync(ct);
-                    if (adminAgent.IsFailure)
-                    {
-                        await transaction.RollbackAsync(ct);
-                        return Result.Failure(adminAgent.Error);
-                    }
-
-                    foreach (var property in agent.Properties)
-                        property.AgentId = adminAgent.Value.Id;
-
-                    await dbContext.SaveChangesAsync(ct);
-                }
-
-                dbContext.Agents.Remove(agent);
-                await dbContext.SaveChangesAsync(ct);
-            }
+            return Result.Failure(Error.Conflict("AGENT_REMOVAL_REQUIRES_LIFECYCLE",
+                "Agent status cannot be removed directly. Use the agent removal endpoint instead: it records a reason, revokes the registration and can transfer the agent's listings."));
         }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
         var result = await userManager.RemoveFromRoleAsync(user, request.Role);
         if (!result.Succeeded)
@@ -405,33 +443,6 @@ public class AuthService(
             expiresAt,
             refreshToken,
             DateTime.UtcNow.AddDays(jwtOptions.Value.RefreshTokenDays)));
-    }
-
-    private async Task<Result<Agent>> GetOrCreateAdminAgentAsync(CancellationToken ct)
-    {
-        var admin = (await userManager.GetUsersInRoleAsync(Roles.Admin)).FirstOrDefault();
-        if (admin is null)
-            return Result<Agent>.Failure(Error.Conflict(
-                "ADMIN_REQUIRED", "No admin user exists to transfer the properties to."));
-
-        var agent = await dbContext.Agents.FirstOrDefaultAsync(a => a.UserId == admin.Id, ct);
-        if (agent is not null)
-            return Result<Agent>.Success(agent);
-
-        agent = new Agent
-        {
-            Title = "Administrator",
-            AgencyName = "PIPDC Administration",
-            PhoneNumber = admin.PhoneNumber ?? string.Empty,
-            IsVerified = false,
-            UserId = admin.Id,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        dbContext.Agents.Add(agent);
-        await dbContext.SaveChangesAsync(ct);
-
-        return Result<Agent>.Success(agent);
     }
 
     private async Task RevokeAllActiveTokensAsync(string userId, CancellationToken ct)

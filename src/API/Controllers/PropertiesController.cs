@@ -40,6 +40,20 @@ public class PropertiesController(IPropertyService propertyService) : Controller
         return result.ToActionResult();
     }
 
+    [HttpGet("nearby")]
+    [Authorize]
+    public async Task<IActionResult> GetNearby(CancellationToken ct)
+    {
+        // Authenticated only, and the identity comes from the token. A nearby list
+        // is derived from where the signed-in user says they are, so it is not
+        // meaningful to an anonymous visitor and must never accept a user id.
+        if (CurrentUserId is null)
+            return Unauthorized();
+
+        var result = await propertyService.GetNearbyAsync(CurrentUserId, ct);
+        return result.ToActionResult();
+    }
+
     [HttpGet("slug/{slug}")]
     public async Task<IActionResult> GetBySlug(string slug, CancellationToken ct)
     {

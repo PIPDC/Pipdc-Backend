@@ -12,6 +12,18 @@ namespace PIPDC.Application.Properties;
 
 public class PropertyService(IAppDbContext dbContext, IImageService imageService) : IPropertyService
 {
+    // Batch 5 "near you" tuning. The project has no existing options pattern for
+    // read limits, so these stay as plain constants rather than introducing
+    // configuration infrastructure for two numbers. The result count matches the
+    // six-card grid the home page already uses for featured properties.
+    private const int NearbyResultLimit = 6;
+    private const double NearbyMaxRadiusKm = 50.0;
+    private const double KmPerDegreeLatitude = 111.32;
+
+    private const string NearbyModeDistance = "distance";
+    private const string NearbyModeArea = "area";
+    private const string NearbyModeNone = "none";
+
     public async Task<Result<PaginatedResult<PropertyDto>>> GetAllAsync(
         PropertyQueryParameters q,
         string? currentUserId,
@@ -154,7 +166,15 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
     public async Task<Result<IReadOnlyList<PropertyDto>>> GetSimilarAsync(
         int id, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct)
     {
-        var property = await dbContext.Properties.FindAsync([id], ct);
+        // The seed is read through the same visibility rule as the candidates.
+        // Loading it unfiltered would answer 200 with an empty list for a hidden
+        // listing where every other route answers 404, which confirms the id
+        // exists and leaks that the agent has been suspended.
+        IQueryable<Property> seedQuery = dbContext.Properties;
+        if (!includeSuspendedAgents)
+            seedQuery = seedQuery.VisibleProperties();
+
+        var property = await seedQuery.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (property is null)
             return Result<IReadOnlyList<PropertyDto>>.Failure(
                 Error.NotFound("property.notfound", $"Property with id {id} was not found."));
@@ -171,6 +191,174 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             .ToListAsync(ct);
 
         return Result<IReadOnlyList<PropertyDto>>.Success(items.Select(ToDto).ToList());
+    }
+
+    public async Task<Result<NearbyPropertiesDto>> GetNearbyAsync(string currentUserId, CancellationToken ct)
+    {
+        // Batch 5. The caller is always the signed-in user: the id is never read from
+        // the request, so one account cannot ask what is near another.
+        var user = await dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == currentUserId, ct);
+
+        if (user is null)
+            return Result<NearbyPropertiesDto>.Failure(
+                Error.NotFound("user.notfound", "User not found."));
+
+        string? locationName = user.LocationId is null
+            ? null
+            : await dbContext.Locations
+                .AsNoTracking()
+                .Where(l => l.Id == user.LocationId.Value)
+                .Select(l => l.Name)
+                .FirstOrDefaultAsync(ct);
+
+        var hasCoordinates = user.Latitude.HasValue && user.Longitude.HasValue;
+
+        // Nothing to anchor on. The caller turns this into a prompt to set a
+        // location; it must never fall back to "here are some properties anyway".
+        if (!hasCoordinates && string.IsNullOrWhiteSpace(locationName))
+            return Result<NearbyPropertiesDto>.Success(new NearbyPropertiesDto(
+                [], false, false, locationName, NearbyModeNone));
+
+        IQueryable<Property> query = dbContext.Properties
+            .Where(p => p.Status == PropertyStatus.Available || p.Status == PropertyStatus.Pending)
+            .VisibleProperties();
+
+        if (!hasCoordinates)
+            return await AreaMatchAsync(query, locationName!, currentUserId, ct);
+
+        // Only rows that actually carry coordinates can be ranked by distance. A
+        // property without them stays reachable through normal search and listing; it
+        // is simply not claimed to be nearby.
+        query = query.Where(p => p.Latitude != null && p.Longitude != null);
+
+        var lat = user.Latitude!.Value;
+        var lon = user.Longitude!.Value;
+
+        // A bounding box is cheap for PostgreSQL to evaluate and cuts the candidate
+        // set before any trigonometry happens. Exact Haversine then runs in memory
+        // over only those candidates, so the whole table is never loaded and no
+        // spatial extension is required.
+        var latDelta = NearbyMaxRadiusKm / KmPerDegreeLatitude;
+        var cosLat = Math.Cos(lat * Math.PI / 180.0);
+        var lonDelta = Math.Abs(cosLat) < 0.000001
+            ? 180.0
+            : NearbyMaxRadiusKm / (KmPerDegreeLatitude * Math.Abs(cosLat));
+
+        var candidates = await query
+            .AsNoTracking()
+            .Where(p => p.Latitude >= lat - latDelta && p.Latitude <= lat + latDelta
+                && p.Longitude >= lon - lonDelta && p.Longitude <= lon + lonDelta)
+            .Select(p => new { p.Id, p.Latitude, p.Longitude })
+            .ToListAsync(ct);
+
+        if (candidates.Count == 0)
+            return Result<NearbyPropertiesDto>.Success(new NearbyPropertiesDto(
+                [], true, true, locationName, NearbyModeDistance));
+
+        var ranked = candidates
+            .Select(c => new
+            {
+                c.Id,
+                DistanceKm = HaversineKm(lat, lon, c.Latitude!.Value, c.Longitude!.Value)
+            })
+            .OrderBy(c => c.DistanceKm)
+            .ThenBy(c => c.Id)
+            .Take(NearbyResultLimit)
+            .ToList();
+
+        // Hydrate only the rows that survived, then restore the distance order,
+        // because the projection query has no ordering of its own.
+        var order = ranked.Select((r, i) => new { r.Id, i }).ToDictionary(x => x.Id, x => x.i);
+        var rows = await Project(query.Where(p => order.ContainsKey(p.Id)), currentUserId)
+            .ToListAsync(ct);
+
+        var byId = rows.ToDictionary(r => r.Id);
+        var items = new List<NearbyPropertyDto>(ranked.Count);
+
+        foreach (var entry in ranked.OrderBy(e => order[e.Id]))
+        {
+            if (!byId.TryGetValue(entry.Id, out var row))
+                continue;
+
+            items.Add(new NearbyPropertyDto(
+                ToDto(row),
+                Math.Round(entry.DistanceKm, 1),
+                FormatDistance(entry.DistanceKm, row.Area, row.City)));
+        }
+
+        return Result<NearbyPropertiesDto>.Success(new NearbyPropertiesDto(
+            items, true, true, locationName, NearbyModeDistance));
+    }
+
+    private async Task<Result<NearbyPropertiesDto>> AreaMatchAsync(
+        IQueryable<Property> query, string locationName, string currentUserId, CancellationToken ct)
+    {
+        // The user picked an area from the Location hierarchy but did not share
+        // coordinates. Properties store their area as text, not as a LocationId, so
+        // the match is on the state/city name. This is an area match, not a distance:
+        // no kilometre figure is produced, and the UI is told so through
+        // DistanceAvailable = false.
+        var isCity = await dbContext.Locations
+            .AsNoTracking()
+            .AnyAsync(l => l.Name == locationName && l.Type == LocationType.City, ct);
+
+        var target = locationName.Trim().ToLowerInvariant();
+        if (target.Length == 0)
+            return Result<NearbyPropertiesDto>.Success(new NearbyPropertiesDto(
+                [], true, false, locationName, NearbyModeArea));
+
+        // "Plateau" and "Plateau State" must both match, so both spellings are
+        // compared. These stay translatable to SQL (Trim/Lower map to btrim/lower);
+        // the shared NormalizeLocation helper cannot be used here because EF cannot
+        // translate a C# method into the query.
+        var withState = target.EndsWith(" state", StringComparison.Ordinal)
+            ? target[..^6]
+            : target + " state";
+
+        IQueryable<Property> areaQuery = isCity
+            ? query.Where(p => p.City.Trim().ToLower() == target || p.City.Trim().ToLower() == withState)
+            : query.Where(p => p.State.Trim().ToLower() == target || p.State.Trim().ToLower() == withState);
+
+        var rows = await Project(areaQuery.OrderByDescending(p => p.CreatedAt), currentUserId)
+            .Take(NearbyResultLimit)
+            .ToListAsync(ct);
+
+        return Result<NearbyPropertiesDto>.Success(new NearbyPropertiesDto(
+            rows.Select(r => new NearbyPropertyDto(ToDto(r), null, null)).ToList(),
+            true, false, locationName, NearbyModeArea));
+    }
+
+    private static double HaversineKm(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double earthRadiusKm = 6371.0;
+        const double toRad = Math.PI / 180.0;
+
+        var dLat = (lat2 - lat1) * toRad;
+        var dLon = (lon2 - lon1) * toRad;
+        var a = Math.Pow(Math.Sin(dLat / 2), 2)
+            + Math.Cos(lat1 * toRad) * Math.Cos(lat2 * toRad) * Math.Pow(Math.Sin(dLon / 2), 2);
+
+        return earthRadiusKm * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+    }
+
+    private static string FormatDistance(double km, string? area, string? city)
+    {
+        // The coordinates in this database are neighbourhood-level seed values, not
+        // per-address geocoding: several different properties share one exact pair.
+        // Reporting "0 m away" for those would be false precision, so a sub-100 m
+        // result is labelled by the area the property actually declares instead.
+        if (km < 0.1)
+        {
+            var label = string.IsNullOrWhiteSpace(area) ? city : area;
+            return string.IsNullOrWhiteSpace(label) ? "In your area" : label.Trim();
+        }
+
+        if (km < 10)
+            return $"{Math.Round(km, 1)} km away";
+
+        return $"{Math.Round(km, 0)} km away";
     }
 
     public async Task<Result<PropertyDto>> CreateAsync(CreatePropertyRequest request, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
@@ -732,6 +920,13 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
                 return Result<int?>.Failure(
                     Error.Validation("property.nolinkedagent", "Your account has no linked agent profile — contact an administrator."));
 
+            // A suspended agent may keep browsing and reading, but must not be
+            // able to publish new inventory. Checked here so every create path
+            // inherits it without repeating the rule.
+            if (agent.IsSuspended)
+                return Result<int?>.Failure(
+                    Error.Forbidden("property.agentsuspended", "Your account is suspended. You cannot create properties until an administrator reinstates it."));
+
             return Result<int?>.Success(agent.Id);
         }
 
@@ -762,6 +957,14 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             if (agent is null || property.AgentId != agent.Id)
                 return Result.Failure(
                     Error.Forbidden("property.forbidden", "You cannot modify a property that is not assigned to you."));
+
+            // Admins are exempt above and still moderate suspended inventory. An
+            // agent's own suspension blocks every mutation they would otherwise
+            // own, which covers update, delete, status change and image actions
+            // because they all resolve ownership through this method.
+            if (agent.IsSuspended)
+                return Result.Failure(
+                    Error.Forbidden("property.agentsuspended", "Your account is suspended. You cannot manage your properties until an administrator reinstates it."));
 
             return Result.Success();
         }
