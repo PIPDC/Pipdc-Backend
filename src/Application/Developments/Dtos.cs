@@ -169,3 +169,13 @@ public record UpdateDevelopmentUpdateRequest(
 public record TrackProjectRequest(int ProjectId, int? UnitId);
 
 public record UpdateTrackingStatusRequest([Required] string Status);
+
+public record NotificationDto(
+    int Id,
+    string Type,
+    string Title,
+    string Message,
+    string? Link,
+    bool IsRead,
+    DateTime CreatedAt);
+

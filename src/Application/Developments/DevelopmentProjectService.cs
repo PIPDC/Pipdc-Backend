@@ -286,4 +286,38 @@ public class DevelopmentProjectService(IAppDbContext dbContext) : IDevelopmentPr
 
         return candidate;
     }
+    public async Task<Result<IEnumerable<NotificationDto>>> GetNotificationsAsync(string userId, CancellationToken ct)
+    {
+        var notifications = await dbContext.Notifications
+            .Where(n => n.UserId == userId)
+            .OrderByDescending(n => n.CreatedAt)
+            .Take(100)
+            .Select(n => new NotificationDto(n.Id, n.Type, n.Title, n.Message, n.Link, n.IsRead, n.CreatedAt))
+            .ToListAsync(ct);
+        return Result<IEnumerable<NotificationDto>>.Success(notifications);
+    }
+
+    public async Task<Result> MarkNotificationReadAsync(int notificationId, string userId, CancellationToken ct)
+    {
+        var notification = await dbContext.Notifications.FirstOrDefaultAsync(n => n.Id == notificationId && n.UserId == userId, ct);
+        if (notification is null)
+            return Result.Failure(Error.NotFound("notification.notfound", "Notification not found"));
+        if (!notification.IsRead)
+        {
+            notification.IsRead = true;
+            await dbContext.SaveChangesAsync(ct);
+        }
+        return Result.Success();
+    }
+
+    public async Task<Result<int>> CreateNotificationAsync(string userId, string type, string title, string message, string? link, string deduplicationKey, CancellationToken ct)
+    {
+        var existing = await dbContext.Notifications.FirstOrDefaultAsync(n => n.UserId == userId && n.DeduplicationKey == deduplicationKey, ct);
+        if (existing is not null)
+            return Result<int>.Success(existing.Id);
+        var n = new Notification { UserId = userId, Type = type, Title = title, Message = message, Link = link, DeduplicationKey = deduplicationKey, IsRead = false, CreatedAt = DateTime.UtcNow };
+        dbContext.Notifications.Add(n);
+        await dbContext.SaveChangesAsync(ct);
+        return Result<int>.Success(n.Id);
+    }
 }
