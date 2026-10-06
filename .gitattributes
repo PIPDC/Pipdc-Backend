@@ -1,0 +1,14 @@
+# Normalise line endings in the repository so a Windows cp1252 round-trip
+# cannot silently re-encode UTF-8 text on checkout.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.woff binary
+*.woff2 binary

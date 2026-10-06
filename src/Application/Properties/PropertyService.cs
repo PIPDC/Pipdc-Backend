@@ -375,6 +375,14 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             return Result<PropertyDto>.Failure(
                 Error.Validation("property.invalidstatus", $"'{request.Status ?? request.ListingType}' is not a valid listing status."));
 
+        // Creating a property that is already Sold or Rented is the same claim as
+        // changing it to Sold or Rented later, so it needs the same evidence. A
+        // brand new property has no id and therefore no transaction, which means
+        // this always refuses - the deal is filed afterwards from the row.
+        var createDealError = await RequireTransactionForDealStatusAsync(0, status, ct);
+        if (createDealError is not null)
+            return Result<PropertyDto>.Failure(createDealError);
+
         var slug = await EnsureUniqueSlugAsync(request.Slug, request.Title, ct);
 
         // Single source of truth: when a LocationId is supplied, State/City are
@@ -444,6 +452,13 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         if (!TryResolveListing(request.Status, request.ListingType, property.Status, out var listingType, out var status))
             return Result<PropertyDto>.Failure(
                 Error.Validation("property.invalidstatus", $"'{request.Status ?? request.ListingType}' is not a valid listing status."));
+
+        // The edit form carries the status field, so without this the edit path
+        // would be a way around the check that ChangeStatusAsync applies. The
+        // transaction is filed from the row, not by typing Sold into a field.
+        var updateDealError = await RequireTransactionForDealStatusAsync(id, status, ct);
+        if (updateDealError is not null)
+            return Result<PropertyDto>.Failure(updateDealError);
 
         if (currentUserRoles.Contains(Roles.Admin) && request.AgentId.HasValue)
         {
@@ -615,6 +630,15 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         if (!TryResolveStatus(status, out var newStatus))
             return Result<PropertyDto>.Failure(
                 Error.Validation("property.invalidstatus", $"'{status}' is not a valid property status."));
+
+        // Marking a property Sold or Rented asserts that somebody bought or moved
+        // into it. Without a recorded transaction there is no buyer or tenant on
+        // file, which is exactly the record the sales reports depend on, so the
+        // status change is refused rather than allowed to create an unattributable
+        // deal. The client is recorded first, then the status is set.
+        var dealError = await RequireTransactionForDealStatusAsync(id, newStatus, ct);
+        if (dealError is not null)
+            return Result<PropertyDto>.Failure(dealError);
 
         property.Status = newStatus;
         property.UpdatedAt = DateTime.UtcNow;
@@ -975,6 +999,29 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
     private static bool TryResolveType(string? type, out PropertyType propertyType) =>
         PropertyTypeDisplay.TryParse(type, out propertyType);
+
+    /// <summary>
+    /// Returns an error when <paramref name="newStatus"/> is Sold or Rented but no
+    /// transaction exists for the property, and null when the status change is
+    /// allowed. Pass 0 for a property that has not been saved yet: it cannot have
+    /// a transaction, so the same rule refuses a deal that has never been filed.
+    /// </summary>
+    private async Task<Error?> RequireTransactionForDealStatusAsync(int propertyId, PropertyStatus newStatus, CancellationToken ct)
+    {
+        if (newStatus is not (PropertyStatus.Sold or PropertyStatus.Rented))
+            return null;
+
+        var kind = newStatus == PropertyStatus.Sold ? "sale" : "lease";
+        var recorded = newStatus == PropertyStatus.Sold
+            ? await dbContext.SaleRecords.AsNoTracking().AnyAsync(s => s.PropertyId == propertyId, ct)
+            : await dbContext.LeaseRecords.AsNoTracking().AnyAsync(l => l.PropertyId == propertyId, ct);
+
+        return recorded
+            ? null
+            : Error.Validation(
+                "property.transactionrequired",
+                $"Record the {kind} for this property before marking it {newStatus}, so the buyer or tenant is captured.");
+    }
 
     private static bool TryResolveStatus(string? statusLabel, out PropertyStatus status)
     {

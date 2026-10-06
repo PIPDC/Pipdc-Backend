@@ -24,7 +24,15 @@ public record AgentDto(
     int ReviewCount,
     bool IsSuspended,
     DateTime? SuspendedAt,
-    string? SuspensionReason);
+    string? SuspensionReason,
+    // Removal (revocation) state. The admin directory needs these to tell a
+    // revoked agent apart from a live one; without them the UI cannot compute
+    // which agents are removed, so a revoked agent looks like an ordinary
+    // listing. The public directory never returns removed agents at all.
+    bool IsRemoved,
+    DateTime? RemovedAt,
+    string? RemovalReason,
+    int? ReassignedToAgentId);
 
 public record CreateAgentRequest(
     [Required, EmailAddress, MaxLength(256)] string Email,

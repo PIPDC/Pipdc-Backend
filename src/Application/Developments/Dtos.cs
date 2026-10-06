@@ -20,7 +20,12 @@ public record DevelopmentProjectDto(
     int UnitCount,
     int UpdateCount,
     DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    DateTime? UpdatedAt,
+    // Surfaced on the list as well as the detail page: an admin has to be able to
+    // tell at a glance which project owns a listing, and the edit form needs the
+    // current id so saving an unrelated field does not unlink it.
+    int? PropertyId = null,
+    string? PropertyTitle = null);
 
 public record DevelopmentProjectImageDto(
     int Id,
@@ -38,7 +43,22 @@ public record DevelopmentUnitDto(
     string Currency,
     string? Description,
     DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    DateTime? UpdatedAt,
+    // ── Listing descriptor ──────────────────────────────────────────────
+    string ListingType,
+    string PropertyType,
+    string? Period,
+    int? Bedrooms,
+    int? Bathrooms,
+    double? Size,
+    string SizeUnit,
+    int? YearBuilt,
+    IReadOnlyList<string> Amenities,
+    // ── Promotion state ─────────────────────────────────────────────────
+    int? PropertyId,
+    string? PropertyStatus,
+    bool IsListable,
+    IReadOnlyList<string> MissingDetails);
 
 public record DevelopmentUpdateDto(
     int Id,
@@ -90,7 +110,13 @@ public record DevelopmentProjectDetailDto(
     DateTime CreatedAt,
     DateTime? UpdatedAt,
     IReadOnlyList<DevelopmentUnitDto> Units,
-    IReadOnlyList<DevelopmentUpdateDto> Updates);
+    IReadOnlyList<DevelopmentUpdateDto> Updates,
+    // The linked listing and whether the admin still has to promote it. Drives
+    // the explicit "List Property" action on the admin project page.
+    int? PropertyId = null,
+    string? PropertyTitle = null,
+    string? PropertySlug = null,
+    string? PropertyStatus = null);
 
 // ── Request DTOs ───────────────────────────────────────────────────────────
 
@@ -105,6 +131,7 @@ public record CreateDevelopmentProjectRequest(
     DateTime? ExpectedCompletionDate,
     [Range(0, 100)] int? ProgressPercentage,
     bool Featured = false,
+    int? PropertyId = null,
     List<CreateDevelopmentProjectImageRequest>? Images = null);
 
 public record UpdateDevelopmentProjectRequest(
@@ -118,6 +145,9 @@ public record UpdateDevelopmentProjectRequest(
     DateTime? ExpectedCompletionDate,
     [Range(0, 100)] int? ProgressPercentage,
     bool Featured = false,
+    // The listing this project represents. The admin sets this so that the
+    // listing prompt has something to act on when the project completes.
+    int? PropertyId = null,
     List<CreateDevelopmentProjectImageRequest>? Images = null);
 
 public record CreateDevelopmentProjectImageRequest(
@@ -136,7 +166,18 @@ public record CreateDevelopmentUnitRequest(
     string? Status,
     decimal? Price,
     [MaxLength(10)] string? Currency,
-    [MaxLength(2000)] string? Description);
+    [MaxLength(2000)] string? Description,
+    // ── Listing descriptor ──────────────────────────────────────────────
+    // A unit is the individual house, so it carries the fields a listing needs.
+    string? ListingType,
+    string? PropertyType,
+    [MaxLength(50)] string? Period,
+    int? Bedrooms,
+    int? Bathrooms,
+    double? Size,
+    [MaxLength(10)] string? SizeUnit,
+    int? YearBuilt,
+    IReadOnlyList<string>? Amenities);
 
 public record UpdateDevelopmentUnitRequest(
     [Required, MaxLength(50)] string UnitIdentifier,
@@ -144,7 +185,17 @@ public record UpdateDevelopmentUnitRequest(
     [Required] string Status,
     decimal? Price,
     [MaxLength(10)] string? Currency,
-    [MaxLength(2000)] string? Description);
+    [MaxLength(2000)] string? Description,
+    // ── Listing descriptor ──────────────────────────────────────────────
+    string? ListingType,
+    string? PropertyType,
+    [MaxLength(50)] string? Period,
+    int? Bedrooms,
+    int? Bathrooms,
+    double? Size,
+    [MaxLength(10)] string? SizeUnit,
+    int? YearBuilt,
+    IReadOnlyList<string>? Amenities);
 
 // ── Update Request DTOs ────────────────────────────────────────────────────
 
