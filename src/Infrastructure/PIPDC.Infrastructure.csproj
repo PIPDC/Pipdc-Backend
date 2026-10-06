@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Application\PIPDC.Application.csproj" />
+    <ProjectReference Include="..\Domain\PIPDC.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider + migrations. AppDbContext, every IEntityTypeConfiguration and
+         every migration live in this one project, so EF's default
+         MigrationsAssembly (the assembly holding the DbContext) keeps working
+         with no explicit override. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.17">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
+    <!-- AppDbContext : IdentityDbContext<AppUser> -->
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.17" />
+
+    <!-- DependencyInjection.cs: AddAuthentication().AddJwtBearer() -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.17" />
+
+    <!-- Email/EmailQueueWorker.cs: Gmail API client -->
+    <PackageReference Include="Google.Apis.Gmail.v1" Version="1.69.0.3742" />
+    <!-- Email/*: message construction -->
+    <PackageReference Include="MimeKit" Version="4.17.0" />
+
+    <!-- HealthChecks/HealthCheckServiceExtensions.cs: AddDbContextCheck<AppDbContext> -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="9.*" />
+  </ItemGroup>
+
+  <!-- Same implicit-global-usings set the Web SDK used to supply; see the
+       Application csproj for why. -->
+  <ItemGroup>
+    <Using Include="Microsoft.AspNetCore.Builder" />
+    <Using Include="Microsoft.AspNetCore.Hosting" />
+    <Using Include="Microsoft.AspNetCore.Http" />
+    <Using Include="Microsoft.AspNetCore.Routing" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Hosting" />
+    <Using Include="Microsoft.Extensions.Logging" />
+    <Using Include="System.Net.Http.Json" />
+  </ItemGroup>
+
+  <!-- ASP.NET Core types used by Infrastructure: ActionFilterAttribute
+       (Captcha/VerifyHumanAttribute, Idempotency/IdempotentAttribute), the
+       RateLimiting builder API, IEndpointRouteBuilder.MapHealthChecks and
+       BackgroundService. None of these has a narrow NuGet package in .NET 9;
+       they ship in the shared framework. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

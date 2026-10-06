@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- Carried over unchanged from the old root csproj so the entry assembly
+         keeps the same user-secrets id and WebApplication.CreateBuilder keeps
+         resolving the Development secrets (the real connection string lives
+         there, not in appsettings.json). -->
+    <UserSecretsId>e1fa52bf-603f-4f38-b75a-6670210bed0a</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Application\PIPDC.Application.csproj" />
+    <ProjectReference Include="..\Infrastructure\PIPDC.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Program.cs: AddApiVersioning / UrlSegmentApiVersionReader / ApiExplorer -->
+    <PackageReference Include="Asp.Versioning.Mvc" Version="8.1.0" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
+
+    <!-- Program.cs: AddOpenApi, document + operation transformers -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.18" />
+    <!-- Program.cs: app.MapScalarApiReference() -->
+    <PackageReference Include="Scalar.AspNetCore" Version="2.16.13" />
+
+    <!-- Program.cs: dbContext.Database.MigrateAsync() on start-up.
+         9.0.20 to match the version Npgsql.EntityFrameworkCore.PostgreSQL
+         9.0.4 requires transitively (see Application csproj). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.20" />
+
+    <!-- EF tooling loads this from the STARTUP project, not the migrations
+         project. The old single project carried it, so the split moves a copy
+         here; Infrastructure keeps its own (where migrations are authored). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.17">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- appsettings*.json exist in TWO places, by design:
+       - src/API/  : read when content root resolves to the project directory
+                     (Visual Studio debug, `dotnet ef`, `dotnet run` from
+                     src/API). The Web SDK auto-includes these as Content and
+                     copies them to bin/.
+       - repo root : read when content root is Directory.GetCurrentDirectory()
+                     (launching PIPDC.API.exe, or `dotnet run -p src/API`
+                     from the repository root). These are the copies the old
+                     single-project layout used and are kept in place so those
+                     launch modes keep working unchanged.
+       Production deploys the src/API copies with the assembly. -->
+
+</Project>
