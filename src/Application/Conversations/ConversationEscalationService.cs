@@ -1,9 +1,7 @@
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using PIPDC.API.Hubs;
 using PIPDC.Application.Auth;
 using PIPDC.Application.Common;
 using PIPDC.Application.Data;
@@ -16,7 +14,7 @@ namespace PIPDC.Application.Conversations;
 
 public class ConversationEscalationService(
     IAppDbContext dbContext,
-    IHubContext<MessagingHub> hubContext,
+    IMessageNotifier notifier,
     IEmailQueue emailQueue,
     IOptions<GmailApiSettings> gmailOptions,
     IOptions<EmailSettings> emailOptions,
@@ -166,9 +164,7 @@ public class ConversationEscalationService(
     {
         try
         {
-            await hubContext.Clients
-                .Group(ConversationGroup.For(dto.Id))
-                .SendAsync(MessagingHub.ConversationEscalationChangedEvent, dto, ct);
+            await notifier.NotifyEscalationChangedAsync(dto, ct);
         }
         catch (Exception ex)
         {

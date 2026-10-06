@@ -1,8 +1,6 @@
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using PIPDC.API.Hubs;
 using PIPDC.Application.Data;
 using PIPDC.Application.Email;
 using PIPDC.Domain.Common;
@@ -12,7 +10,7 @@ namespace PIPDC.Application.Conversations;
 
 public class MessageService(
     IAppDbContext dbContext,
-    IHubContext<MessagingHub> hubContext,
+    IMessageNotifier notifier,
     IEmailQueue emailQueue,
     IOptions<GmailApiSettings> smtpOptions,
     ILogger<MessageService> logger) : IMessageService
@@ -218,9 +216,7 @@ public class MessageService(
     {
         try
         {
-            await hubContext.Clients
-                .Group(ConversationGroup.For(conversationId))
-                .SendAsync(MessagingHub.NewMessageEvent, message, ct);
+            await notifier.NotifyNewMessageAsync(conversationId, message, ct);
         }
         catch (Exception ex)
         {
