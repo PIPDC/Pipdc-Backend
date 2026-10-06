@@ -19,11 +19,12 @@ public class AgentsController(IAgentService agentService) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] AgentQueryParameters queryParams, CancellationToken ct)
     {
-        // Suspended agents are hidden from this public directory. Admins keep
-        // full visibility, derived from the caller's own claim rather than a
-        // query parameter a public caller could set.
-        var includeSuspended = User.IsInRole(Roles.Admin);
-        var result = await agentService.GetAllAsync(queryParams, includeSuspended, ct);
+        // The public directory always applies the visibility rule, so a revoked,
+        // suspended or unverified agent can never appear in it - not even for an
+        // admin who happens to be signed in. The admin directory asks for
+        // moderated agents explicitly, and only an admin is allowed to.
+        var includeModerated = queryParams.IncludeModerated && User.IsInRole(Roles.Admin);
+        var result = await agentService.GetAllAsync(queryParams, includeModerated, ct);
         return result.ToActionResult();
     }
 

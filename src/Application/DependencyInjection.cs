@@ -49,6 +49,9 @@ public static class DependencyInjection
         services.AddScoped<IDevelopmentProjectService, DevelopmentProjectService>();
         services.AddScoped<IDevelopmentProjectPublicService, DevelopmentProjectPublicService>();
         services.AddScoped<IDevelopmentUnitService, DevelopmentUnitService>();
+        // Shared by the project and unit services: both can promote units, so the
+        // rule that decides what a listing needs lives in one place.
+        services.AddScoped<IDevelopmentListingPromoter, DevelopmentListingPromoter>();
         services.AddScoped<IDevelopmentUpdateService, DevelopmentUpdateService>();
         services.AddScoped<IDevelopmentTrackingService, DevelopmentTrackingService>();
         services.AddScoped<IImageService, ImageService>();

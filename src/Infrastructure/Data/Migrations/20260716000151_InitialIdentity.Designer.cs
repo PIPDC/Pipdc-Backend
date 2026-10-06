@@ -9,7 +9,7 @@ using PIPDC.Infrastructure.Data;
 
 #nullable disable
 
-namespace PIPDC.src.Infrastructure.Data.Migrations
+namespace PIPDC.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     [Migration("20260716000151_InitialIdentity")]

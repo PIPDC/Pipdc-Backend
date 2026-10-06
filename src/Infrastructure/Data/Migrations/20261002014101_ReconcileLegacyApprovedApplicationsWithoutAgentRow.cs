@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace PIPDC.src.Infrastructure.Data.Migrations
+namespace PIPDC.Infrastructure.Data.Migrations
 {
     /// <summary>
     /// Repairs applications that the pre-lifecycle role-removal path left in an

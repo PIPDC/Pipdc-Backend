@@ -9,7 +9,7 @@ using PIPDC.Infrastructure.Data;
 
 #nullable disable
 
-namespace PIPDC.src.Infrastructure.Data.Migrations
+namespace PIPDC.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     partial class AppDbContextModelSnapshot : ModelSnapshot
@@ -1203,6 +1203,16 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.PrimitiveCollection<List<string>>("Amenities")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<int?>("Bathrooms")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Bedrooms")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1218,8 +1228,30 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.Property<int>("DevelopmentProjectId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ListingType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Period")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<decimal?>("Price")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("PropertyId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PropertyType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<double?>("Size")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("SizeUnit")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1238,7 +1270,13 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("YearBuilt")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("PropertyId")
+                        .IsUnique();
 
                     b.HasIndex("DevelopmentProjectId", "UnitIdentifier")
                         .IsUnique();
@@ -2570,7 +2608,14 @@ namespace PIPDC.src.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PIPDC.Domain.Entities.Property", "Property")
+                        .WithMany()
+                        .HasForeignKey("PropertyId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Project");
+
+                    b.Navigation("Property");
                 });
 
             modelBuilder.Entity("PIPDC.Domain.Entities.DevelopmentUpdate", b =>

@@ -27,7 +27,11 @@ public static class AgentMappers
             reviewCount,
             agent.IsSuspended,
             agent.SuspendedAt,
-            agent.SuspensionReason);
+            agent.SuspensionReason,
+            agent.IsRemoved,
+            agent.RemovedAt,
+            agent.RemovalReason,
+            agent.ReassignedToAgentId);
 
     /// <summary>
     /// Maps a report for the moderation queue. The reporter's email is included

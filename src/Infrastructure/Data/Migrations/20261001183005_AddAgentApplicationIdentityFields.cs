@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace PIPDC.src.Infrastructure.Data.Migrations
+namespace PIPDC.Infrastructure.Data.Migrations
 {
     /// <summary>
     /// Adds the identity fields an agent application is now vetted on:

@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using PIPDC.Application.Auth;
 using PIPDC.Application.Common;
 using PIPDC.Application.Data;
@@ -14,6 +13,7 @@ namespace PIPDC.Application.Transactions;
 
 public class TransactionService(
     IAppDbContext dbContext,
+    IUniqueViolationDetector uniqueViolations,
     ILogger<TransactionService> logger) : ITransactionService
 {
     // =========================
@@ -702,7 +702,7 @@ public class TransactionService(
             await transaction.CommitAsync(ct);
             return Result.Success();
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        catch (DbUpdateException ex) when (uniqueViolations.IsUniqueViolation(ex))
         {
             // The index is the authority: a race that slips past the pre-check still
             // cannot produce two sales or two live tenancies.

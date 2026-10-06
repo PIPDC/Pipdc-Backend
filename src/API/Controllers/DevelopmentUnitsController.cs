@@ -37,6 +37,13 @@ public class DevelopmentUnitsController(IDevelopmentUnitService unitService) : C
         return result.ToActionResult();
     }
 
+    [HttpPost("{unitId:int}/promote")]
+    public async Task<IActionResult> Promote(int projectId, int unitId, CancellationToken ct)
+    {
+        var result = await unitService.PromoteAsync(projectId, unitId, ct);
+        return result.ToActionResult();
+    }
+
     [HttpDelete("{unitId:int}")]
     public async Task<IActionResult> Delete(int projectId, int unitId, CancellationToken ct)
     {

@@ -9,7 +9,12 @@ namespace PIPDC.Application.Conversations;
 
 // Centralized authorization for conversation/enquiry access.
 // Admin can inspect any conversation but is never treated as a sender participant.
-internal static class ConversationAuthorization
+//
+// Public because MessagingHub (PIPDC.API) reuses these same rules when a client
+// joins a conversation group. It was internal while the solution was one
+// assembly; the project split made that visible. API -> Application is a
+// permitted direction, so the fix is visibility, not a new dependency.
+public static class ConversationAuthorization
 {
     public static async Task<bool> CanAccessConversationAsync(
         IAppDbContext dbContext, Conversation conversation, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using PIPDC.API.Extensions;
 using PIPDC.API.Hubs;
 using PIPDC.Application;
+using PIPDC.Application.Conversations;
 using PIPDC.Infrastructure.Data;
 using PIPDC.Infrastructure.HealthChecks;
 using PIPDC.Infrastructure;
@@ -73,6 +74,11 @@ builder.Services.AddHsts(options =>
 });
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
+
+// SignalR is an API-layer delivery mechanism, so its implementation of the
+// Application layer's IMessageNotifier is registered here, next to the hub.
+// Application never names this type; it only knows the interface.
+builder.Services.AddScoped<IMessageNotifier, SignalRMessageNotifier>();
 
 // One OpenAPI document per API version so Scalar (and clients) can see and select
 // each version independently. The versioner configures the document transformer with

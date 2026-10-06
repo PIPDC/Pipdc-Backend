@@ -1,0 +1,12 @@
+<Project>
+
+  <!-- Shared by every project in the solution. These three properties were
+       declared on the old root PIPDC.csproj; hoisting them here keeps the four
+       layer projects byte-for-byte consistent on the settings that matter. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

@@ -10,7 +10,7 @@ using PIPDC.Infrastructure.Data;
 
 #nullable disable
 
-namespace PIPDC.src.Infrastructure.Data.Migrations
+namespace PIPDC.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     [Migration("20260823190153_AddAgentPhotoPublicIdAndDevelopmentUpdateImagePublicIds")]

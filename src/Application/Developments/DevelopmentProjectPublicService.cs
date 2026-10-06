@@ -115,9 +115,15 @@ public class DevelopmentProjectPublicService(IAppDbContext dbContext) : IDevelop
             p.Updates.Count,
             p.CreatedAt,
             p.UpdatedAt,
-            p.Units.OrderBy(u => u.UnitIdentifier).Select(u => new DevelopmentUnitDto(
-                u.Id, u.UnitIdentifier, u.UnitType, u.Status.ToString(),
-                u.Price, u.Currency, u.Description, u.CreatedAt, u.UpdatedAt)).ToList(),
+p.Units.OrderBy(u => u.UnitIdentifier).Select(u => new DevelopmentUnitDto(
+                 u.Id, u.UnitIdentifier, u.UnitType, u.Status.ToString(),
+                 u.Price, u.Currency, u.Description, u.CreatedAt, u.UpdatedAt,
+                 u.ListingType.ToString(), u.PropertyType.ToString(), u.Period,
+                 u.Bedrooms, u.Bathrooms, u.Size, u.SizeUnit, u.YearBuilt,
+                 u.Amenities,
+                 // Listing state is internal admin information: whether a unit has
+                 // been promoted, and what it still needs. Not exposed publicly.
+                 null, null, false, [])).ToList(),
             p.Updates.OrderByDescending(u => u.UpdateDate).Select(u => new DevelopmentUpdateDto(
                 u.Id, u.Title, u.Description, u.ProgressPercentage, u.UpdateDate,
                 u.ImageUrls, u.ImagePublicIds, u.CreatedAt, u.UpdatedAt)).ToList());

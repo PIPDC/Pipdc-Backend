@@ -61,6 +61,19 @@ public class DevelopmentProjectConfiguration : IEntityTypeConfiguration<Developm
             .HasForeignKey(p => p.LocationRefId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // The listing a project represents. One-to-one, because a property may
+        // represent at most one development project; the unique index is what
+        // stops two projects claiming the same listing. Matches the
+        // IX_DevelopmentProjects_PropertyId unique index and the SET NULL foreign
+        // key already present in the database.
+        builder.HasOne(p => p.Property)
+            .WithOne()
+            .HasForeignKey<DevelopmentProject>(p => p.PropertyId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(p => p.PropertyId)
+            .IsUnique();
+
         builder.Property<uint>("xmin").IsRowVersion();
     }
 }

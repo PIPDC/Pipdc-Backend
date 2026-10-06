@@ -30,6 +30,11 @@ public static class DependencyInjection
 
         services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
 
+        // Application classifies unique-constraint races through this seam so it
+        // never has to name Npgsql. Registered here, in the layer that owns the
+        // provider-specific test.
+        services.AddScoped<IUniqueViolationDetector, PostgresUniqueViolationDetector>();
+
         services.AddIdentity<AppUser, IdentityRole>(options =>
             {
                 options.Password.RequiredLength = 8;

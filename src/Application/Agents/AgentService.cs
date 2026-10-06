@@ -20,13 +20,15 @@ public class AgentService(
 {
     public async Task<Result<PaginatedResult<AgentDto>>> GetAllAsync(
         AgentQueryParameters q,
-        bool includeSuspended,
+        bool includeModerated,
         CancellationToken ct)
     {
-        // The public agent directory hides suspended agents. includeSuspended is
-        // passed by the API layer from the caller's own role, never from a query
-        // string, so a public caller cannot opt themselves into seeing them.
-        IQueryable<Agent> query = includeSuspended
+        // The public directory hides revoked, suspended and unverified agents.
+        // includeModerated is passed by the API layer only when the caller both
+        // holds the Admin role and asked for it, so a public caller can neither
+        // opt themselves into moderated agents nor have them leaked to them by
+        // holding a role.
+        IQueryable<Agent> query = includeModerated
             ? dbContext.Agents
             : dbContext.Agents.VisibleAgents();
 
@@ -76,7 +78,13 @@ public class AgentService(
                 // already excluded every suspended agent from this result set.
                 a.IsSuspended,
                 a.SuspendedAt,
-                a.SuspensionReason))
+                a.SuspensionReason,
+                // Likewise false publicly; the admin directory is the only caller
+                // that reaches these, which is what lets it badge a revoked agent.
+                a.IsRemoved,
+                a.RemovedAt,
+                a.RemovalReason,
+                a.ReassignedToAgentId))
             .ToListAsync(ct);
         return Result<PaginatedResult<AgentDto>>.Success(
             PaginatedResult<AgentDto>.Create(items, totalCount, q.EffectivePageNumber, q.PageSize));
