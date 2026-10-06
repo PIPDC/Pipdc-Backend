@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace PIPDC.src.Infrastructure.Data.Migrations
+namespace PIPDC.Infrastructure.Data.Migrations
 {
     /// <inheritdoc />
     public partial class AddUserLocationForNearbyProperties : Migration
