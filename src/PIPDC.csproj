@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Single-project consolidation of the four layer projects (Domain,
+       Application, Infrastructure, API). One assembly, four layer folders and
+       namespaces; the dependency direction between them is enforced at runtime
+       by tests/PIPDC.ArchitectureTests (NetArchTest.Rules) instead of by
+       project references.
+       The csproj lives in src/ so the folder layout (src/Domain, src/Application,
+       src/Infrastructure, src/API) maps to namespaces PIPDC.* exactly. -->
+
+  <PropertyGroup>
+    <!-- RootNamespace/AssemblyName = the namespace root and assembly name of the
+         whole backend, derived from the pre-split repository name. Keeping both
+         as "PIPDC" reproduces the old single-assembly identity. -->
+    <RootNamespace>PIPDC</RootNamespace>
+    <AssemblyName>PIPDC</AssemblyName>
+
+    <!-- Carried over unchanged from the old root/API csproj (UserSecretsId) so
+         WebApplication.CreateBuilder keeps resolving the Development secrets
+         (the real connection string lives there, not in appsettings.json). -->
+    <UserSecretsId>e1fa52bf-603f-4f38-b75a-6670210bed0a</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- On a version conflict between the old per-layer csproj package sets the
+         highest version wins. Microsoft.EntityFrameworkCore is referenced at the
+         9.0.20 used by Application/API (matches the version Npgsql.EntityFrameworkCore
+         PostgreSQL 9.0.4 requires transitively; pinning lower trips NU1605). -->
+    <PackageReference Include="Asp.Versioning.Mvc" Version="8.1.0" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
+    <PackageReference Include="CloudinaryDotNet" Version="1.29.3" />
+    <PackageReference Include="Google.Apis.Gmail.v1" Version="1.69.0.3742" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.17" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.17" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.18" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.20" />
+    <!-- EF design-time tooling: must be in the single (startup) project, because
+         dotnet ef loads the package from the startup project. PrivateAssets so it
+         never flows to consumers. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.17">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <!-- Same floating 9.* range as the old Infrastructure csproj carried. -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="9.*" />
+    <!-- AppUser derives from IdentityUser (Microsoft.Extensions.Identity.Stores). -->
+    <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="9.0.17" />
+    <PackageReference Include="MimeKit" Version="4.17.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.16.13" />
+  </ItemGroup>
+
+</Project>
