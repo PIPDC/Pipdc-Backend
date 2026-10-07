@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.JsonWebTokens;
 using PIPDC.API.Extensions;
 using PIPDC.Application.Conversations;
-using PIPDC.Infrastructure.Idempotency;
+using PIPDC.Application.Idempotency;
 using PIPDC.Infrastructure.RateLimiting;
 
 namespace PIPDC.API.Controllers;

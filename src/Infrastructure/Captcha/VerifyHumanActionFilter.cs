@@ -1,11 +1,25 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using PIPDC.Application.Captcha;
 using PIPDC.Infrastructure.Captcha;
 
-public sealed class VerifyHumanAttribute : ActionFilterAttribute
+namespace PIPDC.Infrastructure.Captcha;
+
+/// <summary>
+/// Server-side Cloudflare Turnstile human verification for actions decorated with
+/// the PIPDC.Application.Captcha.VerifyHumanAttribute marker. Registered as a global
+/// action filter; unmarked endpoints pass straight through.
+/// </summary>
+public sealed class VerifyHumanActionFilter : IAsyncActionFilter
 {
-    public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        if (!context.ActionDescriptor.EndpointMetadata.Any(m => m is VerifyHumanAttribute))
+        {
+            await next();
+            return;
+        }
+
         var verifier = context.HttpContext.RequestServices.GetRequiredService<TurnstileVerifier>();
         var token = context.HttpContext.Request.Headers["X-Turnstile-Token"].ToString()
                     ?? context.HttpContext.Request.Form["cf-turnstile-response"].ToString();

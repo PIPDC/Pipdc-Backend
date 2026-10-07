@@ -1,6 +1,5 @@
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 
 namespace PIPDC.Application.Services;
@@ -20,13 +19,11 @@ public class ImageService : IImageService
         _cloudinary.Api.Secure = true;
     }
 
-    public async Task<ImageUploadResult> UploadAsync(IFormFile file, string folder, CancellationToken ct = default)
+    public async Task<ImageUploadResult> UploadAsync(Stream file, string fileName, string folder, CancellationToken ct = default)
     {
-        await using var stream = file.OpenReadStream();
-
         var uploadParams = new ImageUploadParams
         {
-            File = new FileDescription(file.FileName, stream),
+            File = new FileDescription(fileName, file),
             Folder = folder,
             UseFilename = true,
             UniqueFilename = true,
