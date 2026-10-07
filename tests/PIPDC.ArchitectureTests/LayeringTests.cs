@@ -1,85 +1,70 @@
 using System.Reflection;
-using System.Reflection.Metadata;
-using System.Reflection.PortableExecutable;
 using PIPDC.API.Hubs;
 using PIPDC.Domain.Entities;
 
 namespace PIPDC.ArchitectureTests;
 
 /// <summary>
-/// Compiler-enforced version of the reference graph in ARCHITECTURE.md section 1.
+/// Single-assembly version of the reference graph in ARCHITECTURE.md section 1.
 ///
-/// The project split already makes the forbidden references *unbuildable*; these
-/// tests restate the rule and fail loudly if someone wires a bad ProjectReference
-/// (or otherwise sneaks a layer in).
+/// The backend is now ONE project (src/PIPDC.csproj, assembly "PIPDC"), so the
+/// old per-assembly metadata scanner cannot express the layering any more: within
+/// one module every layer is a TypeDef, not a TypeReference, so cross-assembly
+/// metadata has nothing to say. These tests restate the direction of dependency
+/// by reflecting over the single assembly's types and asserting that a type in a
+/// layer never declares a member/attribute whose type lives in a lower layer.
 ///
-///     Domain <- Application <- Infrastructure
-///     API references Application + Infrastructure.
-///     Nothing references API except API itself.
+///     Domain <- Application <- Infrastructure <- API (outward)
+///     Application may not use Infrastructure or API;
+///     Infrastructure may not use API.
 ///
-/// How it works: we walk every TypeReference in each layer assembly's metadata
-/// (the compiler emits one for every external type used anywhere - fields, method
-/// bodies, base types, attributes, generics) and assert the set of referenced
-/// namespaces never starts with a forbidden root.
-///
-/// Why not NetArchTest.Rules: its HaveDependencyOn matches an exact namespace
-/// string, and every PIPDC layer is split across sub-namespaces
-/// (PIPDC.Application.Properties, ...), so the rule passes vacuously - a real
-/// Application -> Infrastructure.Whatever reference would not be caught. This
-/// scanner has prefix semantics and depends only on the in-box
-/// System.Reflection.Metadata.
+/// Precise enough to police the layer table; replaced by the NetArchTest.Rules
+/// suite (same rules, one assembly, prefix semantics) in the consolidation's
+/// step 3.
 /// </summary>
 public sealed class LayeringTests
 {
+    private static readonly Assembly Backend = typeof(AppUser).Assembly;
+
     [Fact]
-    public void Domain_references_nothing_from_any_other_layer()
+    public void Domain_does_not_reference_Application_Infrastructure_or_Api()
     {
-        LayeringAssertions.LacksReferenceRoots(
-            typeof(AppUser).Assembly,
-            "PIPDC.Domain",
-            "PIPDC.Application",
-            "PIPDC.Infrastructure",
-            "PIPDC.API");
+        var hits = LayerReferenceVisitor.Violations("PIPDC.Domain", new[] { "PIPDC.Application", "PIPDC.Infrastructure", "PIPDC.API" });
+        Assert.True(hits.Count == 0, "Domain must not reference any other layer:\n" + string.Join("\n", hits));
     }
 
     [Fact]
     public void Application_does_not_reference_Infrastructure_Api_or_SignalR()
     {
-        LayeringAssertions.LacksReferenceRoots(
-            typeof(Application.Conversations.IMessageNotifier).Assembly,
-            "PIPDC.Application",
-            "PIPDC.Infrastructure",
-            "PIPDC.API",
-            // SignalR hubs are an API-layer concern; from step 1 on the
-            // Application layer communicates through IMessageNotifier instead.
-            "Microsoft.AspNetCore.SignalR");
+        // SignalR hubs are an API-layer concern; the Application layer
+        // communicates through IMessageNotifier instead.
+        var hits = LayerReferenceVisitor.Violations("PIPDC.Application", new[] { "PIPDC.Infrastructure", "PIPDC.API", "Microsoft.AspNetCore.SignalR" });
+        Assert.True(hits.Count == 0, "Application must not reference Infrastructure, API or SignalR:\n" + string.Join("\n", hits));
     }
 
     [Fact]
-    public void Infrastructure_does_not_reference_API()
+    public void Infrastructure_does_not_reference_Api()
     {
-        LayeringAssertions.LacksReferenceRoots(
-            typeof(Infrastructure.DependencyInjection).Assembly,
-            "PIPDC.Infrastructure",
-            "PIPDC.API");
+        var hits = LayerReferenceVisitor.Violations("PIPDC.Infrastructure", new[] { "PIPDC.API" });
+        Assert.True(hits.Count == 0, "Infrastructure must not reference API:\n" + string.Join("\n", hits));
     }
 
     [Fact]
     public void Reference_graph_edges_that_must_exist_are_detected()
     {
-        // Positive controls: proves the scanner actually sees real edges, so
-        // the LacksReferenceRoots rules above are not passing vacuously.
-        LayeringAssertions.HasReferenceRoot(typeof(Application.Conversations.IMessageNotifier).Assembly, "PIPDC.Domain.");
-        LayeringAssertions.HasReferenceRoot(typeof(Infrastructure.DependencyInjection).Assembly, "PIPDC.Application.");
-        LayeringAssertions.HasReferenceRoot(typeof(Infrastructure.DependencyInjection).Assembly, "PIPDC.Domain.");
-        LayeringAssertions.HasReferenceRoot(typeof(MessagingHub).Assembly, "PIPDC.Application.");
-        LayeringAssertions.HasReferenceRoot(typeof(MessagingHub).Assembly, "PIPDC.Infrastructure.");
+        // Positive controls: proves the scanner actually sees real edges, so the
+        // rules above are not passing vacuously.
+        Assert.True(LayerReferenceVisitor.HasRoot("PIPDC.Application", "PIPDC.Domain."), "Application -> Domain edge not detected");
+        Assert.True(LayerReferenceVisitor.HasRoot("PIPDC.Infrastructure", "PIPDC.Application."), "Infrastructure -> Application edge not detected");
+        Assert.True(LayerReferenceVisitor.HasRoot("PIPDC.Infrastructure", "PIPDC.Domain."), "Infrastructure -> Domain edge not detected");
+        Assert.True(LayerReferenceVisitor.HasRoot("PIPDC.API", "PIPDC.Application."), "API -> Application edge not detected");
+        Assert.True(LayerReferenceVisitor.HasRoot("PIPDC.API", "PIPDC.Infrastructure."), "API -> Infrastructure edge not detected");
     }
 
     [Fact]
     public void Controllers_depend_only_on_Application_service_interfaces()
     {
-        var controllerTypes = typeof(MessagingHub).Assembly.GetTypes()
+        var controllerTypes = Backend.GetTypes()
             .Where(t => t.Namespace == "PIPDC.API.Controllers" && t.IsPublic)
             .ToList();
 
@@ -106,60 +91,130 @@ public sealed class LayeringTests
     }
 }
 
-internal static class LayeringAssertions
+internal static class LayerReferenceVisitor
 {
     /// <summary>
-    /// Asserts that every namespace the given assembly's types reference is
-    /// either framework/PIPDC-unspecified or matches none of <paramref name="forbiddenRoots"/>.
-    /// Intersection semantics with the assembly's own root are excluded from the
-    /// scan; forbidden roots are checked with prefix semantics.
+    /// For every type whose namespace starts with <paramref name="layerRoot"/>,
+    /// collects the namespaces of every type it declares (base types, interfaces,
+    /// fields, properties, events, method/constructor signatures, generic
+    /// arguments, attributes) and returns those that start with a forbidden root.
     /// </summary>
-    public static void LacksReferenceRoots(Assembly assembly, string ownRoot, params string[] forbiddenRoots)
+    public static List<string> Violations(string layerRoot, string[] forbiddenRoots)
     {
-        var referenced = GetReferencedNamespaces(assembly.Location)
-            .Where(ns => !ns.StartsWith(ownRoot + ".", StringComparison.Ordinal))
-            .ToArray();
+        var assembly = typeof(AppUser).Assembly;
+        var hits = new List<string>();
 
-        var hits = referenced
-            .Where(ns => forbiddenRoots.Any(root => ns.StartsWith(root, StringComparison.Ordinal)))
-            .OrderBy(ns => ns)
-            .ToArray();
-
-        Assert.True(
-            hits.Length == 0,
-            $"{assembly.GetName().Name} references these forbidden namespaces:\n"
-            + string.Join("\n", hits.Distinct()));
-    }
-
-    public static void HasReferenceRoot(Assembly assembly, string root)
-    {
-        var referenced = GetReferencedNamespaces(assembly.Location)
-            .Where(ns => ns.StartsWith(root, StringComparison.Ordinal))
-            .ToArray();
-
-        Assert.True(
-            referenced.Length > 0,
-            $"{assembly.GetName().Name} should reference {root} — scanner blind to that edge?");
-    }
-
-    /// <summary>
-    /// Collects the namespace of every TypeReference in the module metadata.
-    /// The C# compiler emits a TypeReference for each external type referenced
-    /// from any member (including method bodies and attributes), so this is the
-    /// complete, precision set of the assembly's outward type dependencies.
-    /// </summary>
-    private static IEnumerable<string> GetReferencedNamespaces(string assemblyPath)
-    {
-        var namespaces = new HashSet<string>(StringComparer.Ordinal);
-        using var stream = File.OpenRead(assemblyPath);
-        using var reader = new PEReader(stream);
-        var metadata = reader.GetMetadataReader();
-        foreach (var handle in metadata.TypeReferences)
+        foreach (var type in assembly.GetTypes())
         {
-            var name = metadata.GetString(metadata.GetTypeReference(handle).Namespace);
-            if (!string.IsNullOrWhiteSpace(name))
-                namespaces.Add(name);
+            if (string.IsNullOrEmpty(type.Namespace) ||
+                !type.Namespace.StartsWith(layerRoot, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            foreach (var ns in ReferencedNamespaces(type))
+            {
+                if (forbiddenRoots.Any(root => ns.StartsWith(root, StringComparison.Ordinal)))
+                    hits.Add($"{type.FullName} -> {ns}");
+            }
         }
-        return namespaces;
+
+        return hits.Distinct().ToList();
+    }
+
+    public static bool HasRoot(string layerRoot, string root)
+    {
+        var assembly = typeof(AppUser).Assembly;
+
+        foreach (var type in assembly.GetTypes())
+        {
+            if (string.IsNullOrEmpty(type.Namespace) ||
+                !type.Namespace.StartsWith(layerRoot, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (ReferencedNamespaces(type).Any(ns => ns.StartsWith(root, StringComparison.Ordinal)))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static HashSet<string> ReferencedNamespaces(Type type)
+    {
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        var flags = BindingFlags.Public | BindingFlags.NonPublic
+                  | BindingFlags.Instance | BindingFlags.Static
+                  | BindingFlags.DeclaredOnly;
+
+        void Add(Type? t)
+        {
+            if (t is null) return;
+
+            if (t.IsGenericType)
+            {
+                AddTypeAndNamespace(t);
+                foreach (var argument in t.GetGenericArguments())
+                    Add(argument);
+                return;
+            }
+
+            if (t.IsArray)
+            {
+                Add(t.GetElementType());
+                return;
+            }
+
+            AddTypeAndNamespace(t);
+        }
+
+        void AddTypeAndNamespace(Type t)
+        {
+            if (!string.IsNullOrWhiteSpace(t.Namespace))
+                set.Add(t.Namespace!);
+        }
+
+        for (var b = type.BaseType; b is not null; b = b.BaseType)
+            Add(b);
+
+        foreach (var i in type.GetInterfaces())
+            Add(i);
+
+        foreach (var f in type.GetFields(flags))
+            Add(f.FieldType);
+
+        foreach (var p in type.GetProperties(flags))
+            Add(p.PropertyType);
+
+        foreach (var e in type.GetEvents(flags))
+            Add(e.EventHandlerType);
+
+        foreach (var m in type.GetMethods(flags))
+        {
+            Add(m.ReturnType);
+            foreach (var p in m.GetParameters())
+                Add(p.ParameterType);
+            foreach (var ga in m.GetGenericArguments())
+                Add(ga);
+            foreach (var attr in m.GetCustomAttributesData())
+                Add(attr.AttributeType);
+        }
+
+        foreach (var c in type.GetConstructors(flags))
+        {
+            foreach (var p in c.GetParameters())
+                Add(p.ParameterType);
+            foreach (var attr in c.GetCustomAttributesData())
+                Add(attr.AttributeType);
+        }
+
+        foreach (var ga in type.GetGenericArguments())
+            Add(ga);
+
+        foreach (var attr in type.GetCustomAttributesData())
+            Add(attr.AttributeType);
+
+        return set;
     }
 }
