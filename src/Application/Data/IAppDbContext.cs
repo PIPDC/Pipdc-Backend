@@ -28,6 +28,7 @@ public interface IAppDbContext
     DbSet<AppUser> Users { get; }
     DbSet<SavedProperty> SavedProperties { get; }
     DbSet<AiChatSession> AiChatSessions { get; }
+    DbSet<ConciergeEscalation> ConciergeEscalations { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<DevelopmentProject> DevelopmentProjects { get; }
     DbSet<DevelopmentUnit> DevelopmentUnits { get; }

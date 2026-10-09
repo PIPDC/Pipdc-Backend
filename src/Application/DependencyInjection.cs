@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IPropertyService, PropertyService>();
     services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IAiChatService, AiChatService>();
+        services.AddScoped<IConciergeEscalationService, ConciergeEscalationService>();
         services.AddScoped<IAgentService, AgentService>();
         services.AddScoped<IAgentApplicationService, AgentApplicationService>();
         services.AddScoped<IAgentReportService, AgentReportService>();

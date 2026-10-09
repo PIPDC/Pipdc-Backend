@@ -87,9 +87,9 @@ src/Domain/
   Enums/         18 enums (status + type enums for properties, agents, developments, transactions...)
 ```
 
-Entities: `Agent, AgentApplication, AgentApplicationBlock, AgentRegistrationAppeal, AgentReport, AgentReview, AiChatSession, AppUser, BlogPost, BlogPostTag, Category, Conversation, DevelopmentProject, DevelopmentProjectImage, DevelopmentTracking, DevelopmentUnit, DevelopmentUpdate, Enquiry, IdempotencyRecord, LeaseRecord, Location, Message, Notification, Property, PropertyImage, SaleRecord, SavedProperty, Tag`
+Entities: `Agent, AgentApplication, AgentApplicationBlock, AgentRegistrationAppeal, AgentReport, AgentReview, AiChatSession, AppUser, BlogPost, BlogPostTag, Category, ConciergeEscalation, Conversation, DevelopmentProject, DevelopmentProjectImage, DevelopmentTracking, DevelopmentUnit, DevelopmentUpdate, Enquiry, IdempotencyRecord, LeaseRecord, Location, Message, Notification, Property, PropertyImage, SaleRecord, SavedProperty, Tag`
 
-Enums: `AgentAppealStatus, AgentApplicationStatus, AgentReportReason, AgentReportStatus, BlogPostStatus, ConversationEscalationStatus, DevelopmentProjectStatus, DevelopmentTrackingStatus, DevelopmentUnitStatus, EnquiryStatus, ErrorType, IdempotencyStatus, ListingType, LocationType, PropertyStatus, PropertyType, TransactionStatus, VerificationPurpose`
+Enums: `AgentAppealStatus, AgentApplicationStatus, AgentReportReason, AgentReportStatus, BlogPostStatus, ConciergeEscalationStatus, ConversationEscalationStatus, DevelopmentProjectStatus, DevelopmentTrackingStatus, DevelopmentUnitStatus, EnquiryStatus, ErrorType, IdempotencyStatus, ListingType, LocationType, PropertyStatus, PropertyType, TransactionStatus, VerificationPurpose`
 
 ### 2.2 `src/Application` — business rules and service contracts (17 feature folders)
 
@@ -99,7 +99,7 @@ src/Application/
   Data/IAppDbContext.cs         DbSet<T> facade + DatabaseFacade + SaveChangesAsync (Application never touches AppDbContext type)
   Data/IUniqueViolationDetector.cs   seam so TransactionService never names Npgsql
   Agents/       AgentApplicationService . AgentLicenseGenerator . AgentMappers . AgentQueryParameters . AgentReportService . AgentReviewService . AgentService . Dtos . IAgent{Application,Report,Review,Service}
-  AiChat/       AiChatService . Dtos . GeminiAbstractions (IGeminiClient) . IAiChatService
+  AiChat/       AiChatService . ConciergeEscalationQueryParameters . ConciergeEscalationService . ConciergeEscalationProjections . Dtos . GeminiAbstractions (IGeminiClient) . IAiChatService . IConciergeEscalationService
   Auth/         Dtos . IAuthService . ITokenService . JwtSettings . Roles
   Blog/         BlogService . CategoryService . TagService . BlogPostQueryParameters . Dtos . I{Blog,Category,Tag}Service . *Dtos
   Captcha/      VerifyHumanAttribute    <- marker only (behaviour in Infrastructure)
@@ -141,8 +141,8 @@ src/Infrastructure/
   Auth/         AuthService . TokenService                (JWT + ASP.NET Identity verification)
   Captcha/      TurnstileSettings . TurnstileVerifier . VerifyHumanActionFilter  (runs on marked actions)
   Data/         AppDbContext . RoleSeeder . DevelopmentSeeder . PostgresUniqueViolationDetector
-    Configurations/  27 IEntityTypeConfiguration<T> classes (one per entity: indexes, FK rules, enum-as-string)
-    Migrations/      31 migrations + AppDbContextModelSnapshot   (20260716..20261004)
+    Configurations/  28 IEntityTypeConfiguration<T> classes (one per entity: indexes, FK rules, enum-as-string)
+    Migrations/      32 migrations + AppDbContextModelSnapshot   (20260716..20261009)
   Email/        EmailQueue . EmailQueueWorker . GmailApiEmailService   (singleton in-memory queue + background host)
   Gemini/       GeminiSettings . GeminiClient
   HealthChecks/ HealthCheckServiceExtensions . HealthCheckEndpointExtensions
@@ -159,12 +159,12 @@ marked actions, so controllers never reference an Infrastructure type.
 
 ```
 src/API/
-  Controllers/  29 controllers (list)
+  Controllers/  30 controllers (list)
   Extensions/   GlobalExceptionHandler . ResultExtensions (Result -> HTTP status)
   Hubs/         MessagingHub . SignalRMessageNotifier . ConversationGroup . JwtSubUserIdProvider
 ```
 
-Controllers: `AgentApplications, AgentReports, AgentReviews, Agents, AiChat, Auth, Blog, Categories, Contact, ConversationEscalations, Conversations, Dashboard, DevelopmentNotifications, DevelopmentProjects, DevelopmentProjectsPublic, DevelopmentTracking, DevelopmentTrackingAdmin, DevelopmentUnits, DevelopmentUpdates, Enquiries, Images, Locations, Messages, Properties, SavedProperties, Secured, Tags, Transactions, Users`.
+Controllers: `AgentApplications, AgentReports, AgentReviews, Agents, AiChat, Auth, Blog, Categories, ConciergeEscalations, Contact, ConversationEscalations, Conversations, Dashboard, DevelopmentNotifications, DevelopmentProjects, DevelopmentProjectsPublic, DevelopmentTracking, DevelopmentTrackingAdmin, DevelopmentUnits, DevelopmentUpdates, Enquiries, Images, Locations, Messages, Properties, SavedProperties, Secured, Tags, Transactions, Users`.
 
 ### 2.5 one csproj to rule them all — `src/PIPDC.csproj`
 

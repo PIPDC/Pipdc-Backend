@@ -42,6 +42,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // AppUser/Users comes from IdentityDbContext and satisfies IAppDbContext.Users.
     public DbSet<SavedProperty> SavedProperties => Set<SavedProperty>();
     public DbSet<AiChatSession> AiChatSessions => Set<AiChatSession>();
+    public DbSet<ConciergeEscalation> ConciergeEscalations => Set<ConciergeEscalation>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<VerificationCode> VerificationCodes => Set<VerificationCode>();
     public DbSet<DevelopmentProject> DevelopmentProjects => Set<DevelopmentProject>();
