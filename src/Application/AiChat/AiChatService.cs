@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using PIPDC.Application.Data;
+using PIPDC.Application.Email;
 using PIPDC.Application.Properties;
 using PIPDC.Domain.Common;
 using PIPDC.Domain.Entities;
@@ -13,6 +15,9 @@ public class AiChatService(
     IAppDbContext dbContext,
     IGeminiClient geminiClient,
     IPropertyService propertyService,
+    IEmailQueue emailQueue,
+    IOptions<GmailApiSettings> gmailOptions,
+    IOptions<EmailSettings> emailOptions,
     ILogger<AiChatService> logger) : IAiChatService
 {
     private const string SystemPrompt =
@@ -54,14 +59,15 @@ public class AiChatService(
         " 4. When a search returns results, recommend at most three of the returned listings and briefly highlight one or two relevant features of each. Never describe listings the search did not return." +
         " 5. Only present properties that match ALL of the user's stated criteria (bedrooms, location, budget, listing type). Do NOT mention, suggest, or link properties that fall outside the requested criteria, even as a bonus or alternative, unless the user explicitly asks for broader or similar options, or unless zero exact matches exist — in that case, and ONLY in that case, you may suggest the closest available alternatives and clearly label them as not an exact match." +
         " 6. For specific bedroom counts, match exactly: '3-bedroom' means exactly 3 bedrooms, and '2 or 6 bedrooms' means 2 AND 6 bedrooms. Never treat a stated count as a minimum, never broaden a count on your own, and never add your own counts to the user's request." +
-        " 7. If the search finds no exact matches, the search result will tell you when closest alternatives exist. If they do, say plainly that there are no exact matches, present those alternatives clearly labeled as not an exact match, and offer how the user could broaden the search (different area, wider budget, nearby neighbourhood). If nothing exists at all, suggest broadening the search." +
+        " 7. If the property search finds no exact matches (including when nothing matches at all), the request is automatically referred to the PIPDC team instead of being answered with closest alternatives. Your reply at that point is only a short, warm confirmation that a team member will follow up — never list alternative or broader options, and never try to re-broaden the search yourself." +
         " 8. Be concise and friendly. Prices keep the currency the marketplace uses." +
         " 9. NEVER mention internal tool names, function names, technical API details, or system architecture in anything you say to the user — including if the user directly asks what you run on or how you work. Always speak as a helpful property expert; describe your capabilities in plain language such as 'checking our listings', 'checking our development projects' or 'searching our database', never as a 'tool', 'function', or 'API'." +
         " 10. When the user asks about ongoing, upcoming, future or under-construction property DEVELOPMENT projects at PIPDC, use your development-project lookup and recommend the real projects it returns, with their name, status, location and progress. NEVER claim you have no information about development projects, NEVER substitute available property listings for an active development, and do NOT send the user to the website to find projects — present the actual projects and offer to detail one or talk about tracking it." +
         " 11. When the user asks which agent to contact, or to recommend an agent (for example 'recommend your agent that has a 3-bedroom apartment'), the property search results identify the agent responsible for each matching listing, so recommend that agent by name and agency and confirm which listing(s) they handle. If the user wants the agent rather than the property, make the agent the focus of the reply. NEVER say you cannot recommend an agent — the data identifies the right person for each listing. When several agents match, genuinely pick the one whose property best fits the user's stated priorities (budget, location, purpose) and say why, instead of listing options without a preference. If the user wants to start a conversation with an agent or physically inspect an agent's listed properties but has NOT given any criteria (bedrooms, location, budget, sale or lease), do NOT reply with only a clarifying question and stop — run a property search without filters, present a few of the in-house agents together with the listings they currently handle (from the search results), and offer to narrow down. When the user then picks one or replies 'yes please', go straight to the rich details of those exact properties (description, amenities, interiors, specs from the search data) and make a genuine comparison." +
         " 12. When the user asks why to choose PIPDC or how PIPDC compares with other platforms, answer with the concrete differentiators in the ORGANIZATION PROFILE (government backing, exclusive Plateau State focus, own development projects, verified in-house agents, and this AI concierge) instead of a generic summary, and only point to the website for contact details or further verification." +
         " 13. The property search results already contain full descriptions, amenities, sizes, bathrooms, tenure and other specs for every listing. When you present a listing, give enough real detail from that data — price/rent and tenure, location, bedrooms/bathrooms, and the notable amenities or described interior features — so that the details stay available for follow-up questions. If the user then asks for more details, interiors, amenities, or a closer look at a property already discussed (e.g. 'yes please', 'tell me more', 'what are the interiors like'), answer immediately from those provided details; describe the interiors, amenities and layout from the description, and NEVER invent features that were not provided. Do not ask 'which property?' if the context makes the property clear." +
-        " 14. When the user asks which property you would pick, which they should choose, or to compare options genuinely (e.g. 'which one would you pick?', 'if you were in my shoes', 'recommend one for me'), make a real choice among the returned options using the details provided (price and tenure, size, bedrooms/bathrooms, amenities, neighbourhood, and the user's stated purpose such as family living, renting, or investing), explain the reasoning, and say plainly what you would pick — do NOT refuse with 'I can't express opinions' or 'I can't recommend one over another'. If an agent is involved, tie your pick to the agent handling the chosen property.";
+        " 14. When the user asks which property you would pick, which they should choose, or to compare options genuinely (e.g. 'which one would you pick?', 'if you were in my shoes', 'recommend one for me'), make a real choice among the returned options using the details provided (price and tenure, size, bedrooms/bathrooms, amenities, neighbourhood, and the user's stated purpose such as family living, renting, or investing), explain the reasoning, and say plainly what you would pick — do NOT refuse with 'I can't express opinions' or 'I can't recommend one over another'. If an agent is involved, tie your pick to the agent handling the chosen property." +
+        " 15. When the user explicitly asks to speak to a human — a PIPDC staff member, an agent, an official — asks to be contacted or visited in person, or raises a PIPDC organizational request that a real person must act on (paperwork, applications, appointments, complaints, transfers, or a definitive answer not covered by the ORGANIZATION PROFILE), call escalate_to_admin with a concise reason describing what the user needs. NEVER call it for trivia, general knowledge, or other out-of-scope questions (those are redirected, not escalated); NEVER call it instead of searching the listings; and NEVER call it for an organizational question the ORGANIZATION PROFILE already answers.";
 
     private const string ClarificationHint =
         "The user has not given enough detail to search the listings. Ask ONE short clarifying question requesting: the preferred location, and either a budget range or a specific neighbourhood/area.";
@@ -76,7 +82,8 @@ public class AiChatService(
                 Error.NotFound("aichat.nosession", "No AI assistant session exists yet."));
 
         var persisted = DeserializeMessages(session.MessagesJson);
-        return Result<AiChatSessionDto>.Success(ToSessionDto(session, persisted));
+        return Result<AiChatSessionDto>.Success(
+            ToSessionDto(session, persisted, await LatestOpenEscalationDtoAsync(session.Id, ct)));
     }
 
     public async Task<Result<SendAiMessageResponseDto>> SendAsync(string userId, string content, CancellationToken ct)
@@ -106,11 +113,41 @@ public class AiChatService(
 
         var assistantText = turn.Text ?? string.Empty;
         List<PropertyDto>? recommendations = null;
+        var shouldEscalate = false;
+        var escalationReason = string.Empty;
 
         if (turn.ToolCall is not null)
         {
             string finalText;
-            if (IsDevelopmentTool(turn.ToolCall))
+
+            if (IsEscalationTool(turn.ToolCall))
+            {
+                var reason = ParseEscalationReason(turn.ToolCall);
+                if (string.IsNullOrWhiteSpace(reason))
+                    return Result<SendAiMessageResponseDto>.Failure(
+                        Error.Validation("aichat.badescalation", "The assistant produced an invalid escalation request. Please try rephrasing."));
+
+                shouldEscalate = true;
+                escalationReason = reason;
+
+                var toolResultText =
+                    "The chat has been handed to the PIPDC team; a team member will follow up with the user directly. " +
+                    "Confirm this briefly and warmly. Do not keep trying to resolve the request yourself.";
+
+                try
+                {
+                    var finalResult = await geminiClient.CompleteAfterToolAsync(history, SystemPrompt, turn.ToolCall, toolResultText, ct);
+                    if (finalResult.IsFailure)
+                        return Result<SendAiMessageResponseDto>.Failure(finalResult.Error);
+                    finalText = finalResult.Value;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "AI assistant escalation turn failed for user {UserId}.", userId);
+                    return Result<SendAiMessageResponseDto>.Failure(AiUnavailable());
+                }
+            }
+            else if (IsDevelopmentTool(turn.ToolCall))
             {
                 var args = ParseDevelopmentArgs(turn.ToolCall);
                 var toolResultText = await SearchDevelopmentsAsync(args, ct);
@@ -144,13 +181,25 @@ public class AiChatService(
                     && string.IsNullOrWhiteSpace(args.ListingType);
 
                 var toolResultText = ClarificationHint;
-                List<PropertyDto> found = new();
-                var foundExact = true;
                 if (!missingDetails)
                 {
-                    (found, foundExact) = await SearchPropertiesAsync(args, ct);
-                    toolResultText = BuildToolResultText(found, foundExact);
-                    recommendations = found;
+                    var (found, foundExact) = await SearchPropertiesAsync(args, ct);
+
+                    if (found.Count == 0 || !foundExact)
+                    {
+                        // No exact match: stop the closest-alternative back-and-forth
+                        // and refer the request to the PIPDC team instead.
+                        shouldEscalate = true;
+                        escalationReason = $"No property matches the client's request ({DescribeCriteria(args)}).";
+                        toolResultText =
+                            "The property search found no exact match in the live listings for the user's criteria, and the request will be referred to the PIPDC team. " +
+                            "Confirm this briefly and warmly to the user. Do not present alternative listings and do not ask the user to broaden their search.";
+                    }
+                    else
+                    {
+                        recommendations = found;
+                        toolResultText = BuildToolResultText(found);
+                    }
                 }
 
                 try
@@ -182,6 +231,10 @@ public class AiChatService(
             dbContext.AiChatSessions.Add(session);
         }
 
+        ConciergeEscalation? escalation = null;
+        if (shouldEscalate)
+            escalation = await StageEscalationAsync(session, escalationReason, ct);
+
         persisted.Add(new PersistedAiMessage { Role = "user", Content = content, SentAt = DateTime.UtcNow });
         persisted.Add(new PersistedAiMessage
         {
@@ -197,8 +250,16 @@ public class AiChatService(
         await dbContext.SaveChangesAsync(ct);
 
         var assistantDto = ToMessageDto(persisted[^1]);
+
+        ConciergeEscalationDto? escalationDto = null;
+        if (escalation is not null)
+        {
+            escalationDto = await ConciergeEscalationProjections.SingleAsync(dbContext, escalation.Id, ct);
+            NotifyAdminsAsync(escalationDto, ct);
+        }
+
         return Result<SendAiMessageResponseDto>.Success(
-            new SendAiMessageResponseDto(ToSessionDto(session, persisted), assistantDto));
+            new SendAiMessageResponseDto(ToSessionDto(session, persisted, escalationDto), assistantDto, escalationDto));
     }
 
     public async Task<Result> DeleteAsync(string userId, CancellationToken ct)
@@ -382,11 +443,10 @@ public class AiChatService(
         return result.IsSuccess ? result.Value.Items : new List<PropertyDto>();
     }
 
-    private static string BuildToolResultText(IReadOnlyList<PropertyDto> properties, bool exact)
+    private static string BuildToolResultText(IReadOnlyList<PropertyDto> properties)
     {
-        if (properties.Count == 0)
-            return "I couldn't find any matching properties in our listings right now. The homepage may show properties in other locations, or ones that are still in earlier stages of listing. Suggest to the user that they try a different area or a different number of bedrooms.";
-
+        // Only exact matches reach this helper: an empty or non-exact result is
+        // escalated to the PIPDC team instead, so the model never sees alternatives.
         var lines = properties.Select((p, i) =>
         {
             var head = $"{p.Title} (slug: {p.Slug}) — {p.Currency} {p.Price:N0} ({(p.ListingType == "ForLease" ? "lease" : "sale")}), {p.City}, {p.State}" +
@@ -421,23 +481,144 @@ public class AiChatService(
             return $"{i + 1}. {head}{detail}{blurb}{am}";
         });
 
-        if (!exact)
-            return "The property search found NO properties matching every detail the user asked for. The closest available options in the live listings are:" +
-                   Environment.NewLine +
-                   string.Join(Environment.NewLine, lines) +
-                   Environment.NewLine +
-                   "Present these ONLY clearly labeled as alternatives that are NOT exact matches. Say plainly that there are no exact matches, then offer these as the closest options; never present them as if they matched the user's criteria.";
-
         return "The property search found " + properties.Count +
                (properties.Count == 1 ? " match:" : " matches:") + Environment.NewLine +
                string.Join(Environment.NewLine, lines);
     }
 
+    private static bool IsEscalationTool(GeminiToolCall call) =>
+        string.Equals(call.Name, "escalate_to_admin", StringComparison.OrdinalIgnoreCase);
+
+    private static GeminiEscalationArgs? ParseEscalationArgs(GeminiToolCall call)
+    {
+        if (string.IsNullOrWhiteSpace(call.JsonArguments) || string.Equals(call.JsonArguments, "{}", StringComparison.Ordinal))
+            return new GeminiEscalationArgs();
+
+        try
+        {
+            return JsonSerializer.Deserialize<GeminiEscalationArgs>(call.JsonArguments, JsonOpts) ?? new GeminiEscalationArgs();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? ParseEscalationReason(GeminiToolCall call) =>
+        ParseEscalationArgs(call)?.Reason?.Trim();
+
+    private static string DescribeCriteria(GeminiToolArgs args)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(args.Location))
+            parts.Add($"location {args.Location}");
+        if (!string.IsNullOrWhiteSpace(args.Area))
+            parts.Add($"area {args.Area}");
+        if (args.MinPrice.HasValue)
+            parts.Add($"from {args.MinPrice.Value:N0}");
+        if (args.MaxPrice.HasValue)
+            parts.Add($"up to {args.MaxPrice.Value:N0}");
+        if (args.Bedrooms is { Count: > 0 })
+            parts.Add($"{string.Join(" or ", args.Bedrooms.Where(b => b >= 1).Distinct().OrderBy(b => b))} bedroom(s)");
+        if (args.MinBedrooms.HasValue)
+            parts.Add($"at least {args.MinBedrooms} bedroom(s)");
+        if (!string.IsNullOrWhiteSpace(args.ListingType))
+            parts.Add(args.ListingType == "ForLease" ? "for rent" : "for sale");
+        return parts.Count == 0 ? "the stated criteria" : string.Join(", ", parts);
+    }
+
+    // Stages the escalation into the same SaveChanges that persists the chat, so
+    // the client is only told they were referred if the referral actually landed.
+    private async Task<ConciergeEscalation> StageEscalationAsync(AiChatSession session, string reason, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+
+        if (session.Id != 0)
+        {
+            var existing = await dbContext.ConciergeEscalations
+                .Where(e => e.AiChatSessionId == session.Id
+                            && e.EscalationStatus != ConciergeEscalationStatus.Resolved)
+                .OrderByDescending(e => e.EscalatedAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (existing is not null)
+            {
+                // A case already owned by an admin stays with that admin. An
+                // unclaimed case just gets the freshest reason and timestamp so the
+                // queue always shows the latest concern.
+                if (existing.EscalationStatus == ConciergeEscalationStatus.Escalated)
+                {
+                    existing.EscalationReason = reason;
+                    existing.EscalatedAt = now;
+                    existing.UpdatedAt = now;
+                }
+
+                return existing;
+            }
+        }
+
+        var escalation = new ConciergeEscalation
+        {
+            AiChatSession = session,
+            EscalationReason = reason,
+            EscalationStatus = ConciergeEscalationStatus.Escalated,
+            EscalatedAt = now,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        dbContext.ConciergeEscalations.Add(escalation);
+        return escalation;
+    }
+
+    private async Task<ConciergeEscalationDto?> LatestOpenEscalationDtoAsync(int sessionId, CancellationToken ct)
+    {
+        var record = await ConciergeEscalationProjections.Project(
+                dbContext.ConciergeEscalations
+                    .Where(e => e.AiChatSessionId == sessionId
+                                && e.EscalationStatus != ConciergeEscalationStatus.Resolved)
+                    .OrderByDescending(e => e.EscalatedAt))
+            .FirstOrDefaultAsync(ct);
+
+        return record is null ? null : ConciergeEscalationProjections.ToDto(record);
+    }
+
+    // Best-effort, exactly like the conversation escalation queue: the chat is
+    // already committed, so a queue failure must not surface to the client.
+    private void NotifyAdminsAsync(ConciergeEscalationDto escalation, CancellationToken ct)
+    {
+        try
+        {
+            var recipient = emailOptions.Value.ResolveAgentApplicationsRecipient();
+            if (string.IsNullOrWhiteSpace(recipient))
+            {
+                logger.LogWarning(
+                    "Concierge escalation {EscalationId} occurred but no Email:AgentApplicationsRecipient or Email:ContactRecipient is configured; admins were not notified.",
+                    escalation.Id);
+                return;
+            }
+
+            emailQueue.QueueEmail(
+                logger,
+                EmailTemplates.ConciergeEscalatedToAdmin(
+                    recipient,
+                    escalation.ClientName,
+                    escalation.EscalationReason,
+                    gmailOptions.Value.FrontendBaseUrl),
+                $"concierge-escalated:{escalation.Id}",
+                ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Failed to queue concierge escalation email for escalation {EscalationId}.", escalation.Id);
+        }
+    }
+
     private static Error AiUnavailable() =>
         Error.Failure("aichat.unavailable", "The AI assistant is temporarily unavailable. Please try again shortly.");
 
-    private static AiChatSessionDto ToSessionDto(AiChatSession session, List<PersistedAiMessage> messages) =>
-        new(session.Id, session.Title, session.LastMessageAt, messages.Select(ToMessageDto).ToList());
+    private static AiChatSessionDto ToSessionDto(
+        AiChatSession session, List<PersistedAiMessage> messages, ConciergeEscalationDto? escalation = null) =>
+        new(session.Id, session.Title, session.LastMessageAt, messages.Select(ToMessageDto).ToList(), escalation);
 
     private static AiChatMessageDto ToMessageDto(PersistedAiMessage message) =>
         new(message.Role, message.Content, message.SentAt, message.Properties);
