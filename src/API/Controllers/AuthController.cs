@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.JsonWebTokens;
 using PIPDC.API.Extensions;
 using PIPDC.Application.Auth;
-using PIPDC.Infrastructure.Captcha;
-using PIPDC.Infrastructure.Idempotency;
+using PIPDC.Application.Captcha;
+using PIPDC.Application.Idempotency;
 using PIPDC.Infrastructure.RateLimiting;
 
 namespace PIPDC.API.Controllers;

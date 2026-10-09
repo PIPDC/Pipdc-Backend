@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,7 @@ using PIPDC.Infrastructure.Captcha;
 using PIPDC.Infrastructure.Email;
 using PIPDC.Infrastructure.Gemini;
 using PIPDC.Infrastructure.HealthChecks;
+using PIPDC.Infrastructure.Idempotency;
 using PIPDC.Infrastructure.OpenRouter;
 using PIPDC.Infrastructure.RateLimiting;
 
@@ -135,8 +137,19 @@ public static class DependencyInjection
 
         services.AddRateLimiting();
 
+        // Idempotency and Turnstile markers are Application-layer metadata; the
+        // behaviour runs here as global action filters that only engage on marked
+        // actions, so controllers never name an Infrastructure type.
+        services.AddScoped<IdempotencyActionFilter>();
+        services.AddScoped<VerifyHumanActionFilter>();
+        services.Configure<MvcOptions>(options =>
+        {
+            options.Filters.Add<IdempotencyActionFilter>();
+            options.Filters.Add<VerifyHumanActionFilter>();
+        });
+
         // Cloudflare Turnstile anti-bot verification (server-side). Registered as a
-        // typed HttpClient so VerifyHumanAttribute can resolve the verifier.
+        // typed HttpClient so VerifyHumanActionFilter can resolve the verifier.
         services.Configure<TurnstileSettings>(config.GetSection("Turnstile"));
         services.AddHttpClient<TurnstileVerifier>(client =>
             client.BaseAddress = new Uri("https://challenges.cloudflare.com"));

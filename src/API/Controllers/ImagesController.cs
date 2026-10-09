@@ -43,7 +43,7 @@ public class ImagesController : ControllerBase
         if (file.Length > MaxFileSize)
             return BadRequest(new { message = "File size must be 10 MB or less." });
 
-        var result = await _imageService.UploadAsync(file, folder, ct);
+        var result = await _imageService.UploadAsync(file.OpenReadStream(), file.FileName, folder, ct);
 
         return Ok(new { url = result.Url, publicId = result.PublicId });
     }

@@ -9,26 +9,33 @@ everywhere else.
 
 ## 1. The one structural fact to know first
 
-**There are four projects**, all `net9.0`, gathered in `PIPDC.sln` and sharing
-the root `Directory.Build.props` (`Nullable`, `ImplicitUsings`):
+**There is one application project**, `src/PIPDC.csproj` (Web SDK,
+`net9.0`, assembly name `PIPDC`), whose four layers are folders carrying the
+four namespace roots. `PIPDC.sln` gathers exactly two projects — the
+application project and the architecture test project — over one shared
+`Directory.Build.props` (`Nullable`, `ImplicitUsings`):
 
-| Project | Layer | Referenced by | References |
+| Layer | Folder | Namespace root | Owning concerns |
 |---|---|---|---|
-| `src/Domain/PIPDC.Domain.csproj` | Domain | every other project | none |
-| `src/Application/PIPDC.Application.csproj` | Application | Infrastructure, API | Domain |
-| `src/Infrastructure/PIPDC.Infrastructure.csproj` | Infrastructure | API | Application, Domain |
-| `src/API/PIPDC.API.csproj` | API (Web SDK) | tests | Application, Infrastructure |
+| Domain | `src/Domain` | `PIPDC.Domain.*` | entities, enums, Result/Error |
+| Application | `src/Application` | `PIPDC.Application.*` | interfaces, services, DTOs, query params |
+| Infrastructure | `src/Infrastructure` | `PIPDC.Infrastructure.*` | EF Core, auth, email, AI clients, rate limiting |
+| API | `src/API` | `PIPDC.API.*` | controllers, SignalR hubs, Program.cs |
 
 ```
 src/
-├── Domain/          PIPDC.Domain.*          entities, enums, Result/Error
-├── Application/     PIPDC.Application.*     interfaces, services, DTOs, query params
-├── Infrastructure/  PIPDC.Infrastructure.*  EF Core, auth, email, AI clients, rate limiting
-└── API/             PIPDC.API.*             controllers, SignalR hubs, Program.cs
+├── PIPDC.csproj            ← the single project (assembly "PIPDC")
+├── Program.cs / appsettings.*.json / Properties/launchSettings.json
+├── Domain/
+├── Application/
+├── Infrastructure/
+└── API/
 ```
 
-The dependency direction is **compiler-enforced** by the `ProjectReference`
-graph — a wrong-way `using` is now a build error, not a convention:
+All four namespaces compile into the same assembly, so a wrong-way reference is
+no longer a build error — the direction of dependency is enforced at **test
+time** by `tests/PIPDC.ArchitectureTests` (NetArchTest.Rules, 18 facts; see
+section 12) with namespace *prefix* semantics:
 
 ```
 API ──────────► Application ──────► Domain
@@ -44,11 +51,10 @@ API ──────────► Application ──────► Domain
 | Infrastructure | yes | yes | — | none |
 | API | yes | yes | yes | — |
 
-When the four layers were folders inside one project, this table had to be
-verified by reading the `using` statements, and it was violated in two spots
-(see section 11). The split turned every forbidden cell above into a compile
-error. `tests/PIPDC.ArchitectureTests` restates the graph as executable rules
-(section 12) so a careless `ProjectReference` fails loudly.
+This has not always been the setup: the four layers began as folders in one
+project (convention-only), the split into four projects turned every forbidden
+cell into a compile error, and the consolidation to one project moved the guard
+back into the executable rules of `tests/PIPDC.ArchitectureTests`.
 
 ---
 
@@ -213,7 +219,7 @@ Two extension methods, both in a static class named `DependencyInjection`:
 | `src/Application/DependencyInjection.cs` | `AddApplication()` | every `I*Service → *Service`, all `Scoped` |
 | `src/Infrastructure/DependencyInjection.cs` | `AddInfrastructure(IConfiguration)` | DbContext, Identity, JWT, CORS, email, AI clients, rate limiting, health checks, the `IUniqueViolationDetector` seam (`PostgresUniqueViolationDetector`) |
 
-Called from `src/API/Program.cs:74-75`, infrastructure first:
+Called from `src/Program.cs` (composition root), infrastructure first:
 
 ```csharp
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -518,61 +524,81 @@ What distinguishes it from Example A:
 
 ## 11. Known deviations (honest notes)
 
-The three deviations this section used to list are **fixed**; they are kept as a
-record of what the split changed, and the remaining notes are honest ones.
+Several notes in this section describe the journey the layer boundaries took;
+the ones struck out are resolved by current commits and kept only as history.
 
-1. **`Application` → `API.Hubs` — fixed.** `MessageService.cs` and
-   `ConversationEscalationService.cs` used to inject `IHubContext<MessagingHub>`
-   directly. They now go through the Application-owned `IMessageNotifier`
-   interface, implemented in `src/API/Hubs/SignalRMessageNotifier.cs`. Grep
-   confirms Application has zero `Microsoft.AspNetCore.SignalR` / `PIPDC.API`
-   references.
-2. **Layering by convention — fixed by the split.** The four folders are now
-   four projects, so a wrong-way `using` or `ProjectReference` is a compile
-   error (section 1). The architecture tests in section 12 re-assert the same
-   graph at test time.
+1. **`Application` → `API.Hubs` — fixed (2024, still true).** `MessageService.cs`
+   and `ConversationEscalationService.cs` used to inject
+   `IHubContext<MessagingHub>` directly. They now go through the Application-owned
+   `IMessageNotifier` interface, implemented in `src/API/Hubs/SignalRMessageNotifier.cs`.
+   Grep confirms Application has zero `Microsoft.AspNetCore.SignalR` /
+   `PIPDC.API` references.
+2. ~~**Layering by convention — fixed by the split.**~~ The four folders were
+   temporarily four projects, which made a wrong-way `using` a compile error.
+   The single-project consolidation (2026) returned to one csproj and moved the
+   guard to the NetArchTest rules in section 12: dependency direction is now a
+   test-time assertion, not a compile-time property.
 3. **Migration namespace anomaly — fixed.** Generated migrations used to carry
    `PIPDC.src.Infrastructure.Data.Migrations`, an artifact of an early
    `src/PIPDC/src/…` layout. All 31 files + `AppDbContextModelSnapshot.cs` now
-   use `PIPDC.Infrastructure.Data.Migrations`, matching hand-written code. Only
-   the namespace declarations were rewritten; migration **content** (up/down
-   operations) was not touched, so the database schema contract is unchanged.
-   `dotnet ef migrations list` matches the pre-split baseline exactly and
-   `dotnet ef migrations has-pending-model-changes` reports no model changes.
-4. **`appsettings.json` lives in two places.** EF tools and Visual Studio resolve
-   content root against the project directory, so `src/API/appsettings*.json`
-   exist for them; launching `src/API/bin/…/PIPDC.API.exe` (or `dotnet run`)
-   from the repo root resolves content root against the working directory, so
-   the root copies are retained. The two sets are tracked and currently
-   byte-identical; keep them in sync. Production ships the `src/API` copies
-   (they ride along in the build output).
-5. **Build output moved.** Binary output is no longer a single root `bin/`; each
-   project has its own, e.g. `src/API/bin/Debug/net9.0/PIPDC.API.exe`.
+   use `PIPDC.Infrastructure.Data.Migrations`. Only the namespace declarations
+   were rewritten; migration **content** (up/down operations) was not touched,
+   so the database schema contract is unchanged. `dotnet ef migrations list`
+   matches the pre-split baseline exactly and `dotnet ef migrations
+   has-pending-model-changes` reports no model changes.
+4. ~~**`appsettings.json` lives in two places.**~~ Resolved by the consolidation:
+   there is a single `src/appsettings.json` / `src/appsettings.Development.json`,
+   and `dotnet run --project src` (or `src/PIPDC.csproj`) picks it up from the
+   content root. No duplicate copies.
+5. ~~**Build output moved.**~~ Resolved: the one project produces a single
+   output, `src/bin/Debug/net9.0/PIPDC(.dll|.exe)`.
+
+Two deliberate boundary decisions worth recording:
+
+- `RateLimitPolicies` stays in `PIPDC.Infrastructure.RateLimiting`, yet
+  controllers keep `using PIPDC.Infrastructure.RateLimiting;`. Controllers only
+  consume its `const string` names as `[EnableRateLimiting(...)]` arguments —
+  a compile-time constant, no metadata type reference — so the controller rule
+  (section 12) correctly does not flag it, and moving the constants would only
+  churn another namespace.
+- `VerifyHumanAttribute` used to live in the *global* namespace (no `namespace`
+  declaration at all). The Rule 6 rework normalized it into
+  `PIPDC.Application.Captcha`.
 
 ---
 
 ## 12. Architecture tests
 
-`tests/PIPDC.ArchitectureTests` (xUnit; run with `dotnet test
-tests/PIPDC.ArchitectureTests`) walks the metadata of each layer assembly and
-asserts:
+`tests/PIPDC.ArchitectureTests` (xUnit + `NetArchTest.Rules`; run with
+`dotnet test`) walks the single `PIPDC` assembly — anchored on
+`typeof(PIPDC.Domain.Common.Result).Assembly` — and asserts the section 1
+table plus the technology boundaries, with namespace **prefix** semantics so a
+reference to any `PIPDC.Infrastructure.*` subnamespace is caught, not just the
+root:
 
-- `PIPDC.Domain` references nothing from any other layer.
-- `PIPDC.Application` references nothing from `PIPDC.Infrastructure`,
-  `PIPDC.API`, or `Microsoft.AspNetCore.SignalR`.
+- `PIPDC.Domain` references nothing from `PIPDC.Application`,
+  `PIPDC.Infrastructure` or `PIPDC.API`, and does not use EF Core,
+  ASP.NET Core MVC, SignalR or Npgsql.
+- `PIPDC.Application` references nothing from `PIPDC.Infrastructure` or
+  `PIPDC.API`, and does not use Npgsql, MVC, SignalR or
+  `Microsoft.AspNetCore.Http` (it MAY use the EF Core abstractions via
+  `IAppDbContext`).
 - `PIPDC.Infrastructure` references nothing from `PIPDC.API`.
-- Controllers (`PIPDC.API.Controllers`) take only Application service interfaces
-  as constructor dependencies — no `IAppDbContext`, no Infrastructure service
-  types, no Domain entities.
-- Positive controls assert the edges that **must** exist (Application → Domain,
-  Infrastructure → Application/Domain, API → Application/Infrastructure), so a
-  scanner blind spot can never make the negative rules pass vacuously.
+- Types whose name ends in `Controller` do not depend on `IAppDbContext` or
+  any `PIPDC.Infrastructure.*` type.
+- Every Application `I*Service` interface has exactly one implementation, and
+  no Application type ending in `Service` is a public static utility class.
 
-The scanner inspects every `TypeReference` the compiler emitted into the
-assembly (fields, method bodies, attributes, generic arguments) and compares
-namespace roots with prefix semantics. `NetArchTest.Rules` was tried first and
-rejected: its `HaveDependencyOn` matches an *exact* namespace string, while
-every layer is spread across sub-namespaces (`PIPDC.Application.Properties`, …),
-so a genuine `Application → PIPDC.Infrastructure.X` reference would dodge it.
-The in-box `System.Reflection.Metadata` scanner has no such blind spot and adds
-no package.
+Each rule is its own `[Fact]`, and every failure message lists the offending
+types. The pipeline is validated by a negative proof: injecting a temporary
+Domain→Infrastructure signature reference makes exactly
+`Domain_does_not_depend_on_Infrastructure` fail (output captured, then
+reverted), so a blind spot or a vacuous matcher can never mask the rules.
+
+Notes on the matcher, learned while building it: NetArchTest (1.3.2) DOES
+detect intra-assembly references (it walks member signatures, base types,
+interfaces and attributes, not just the metadata type-reference table) and
+matches dependency strings as namespace prefixes. Const strings used as
+attribute arguments (e.g. `RateLimitPolicies.Writes` in
+`[EnableRateLimiting(...)]`) leave no metadata type reference, which is exactly
+why the controller rule does not flag them (section 11).

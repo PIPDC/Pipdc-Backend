@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
+using PIPDC.Application.Idempotency;
 using PIPDC.Domain.Common;
 using PIPDC.Domain.Entities;
 using PIPDC.Domain.Enums;
@@ -26,16 +27,24 @@ namespace PIPDC.Infrastructure.Idempotency;
 /// A request that fails (non-2xx result or thrown exception) has its reservation
 /// removed, so a genuine retry with the same key re-executes. Keys live 24h; expired
 /// rows are purged opportunistically on each call.
+///
+/// Registered as a global action filter; it only engages on actions decorated with
+/// the PIPDC.Application.Idempotency.IdempotentAttribute marker, so unmarked
+/// endpoints pass straight through.
 /// </summary>
-public sealed class IdempotentAttribute : ActionFilterAttribute
+public sealed class IdempotencyActionFilter : IAsyncActionFilter
 {
-    public const string HeaderName = "Idempotency-Key";
-
     private static readonly TimeSpan Ttl = TimeSpan.FromHours(24);
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        if (!context.ActionDescriptor.EndpointMetadata.Any(m => m is IdempotentAttribute))
+        {
+            await next();
+            return;
+        }
+
         var dbContext = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
         var ct = context.HttpContext.RequestAborted;
 
@@ -61,7 +70,7 @@ public sealed class IdempotentAttribute : ActionFilterAttribute
                 {
                     context.Result = Conflict(
                         "idempotency.keyreuse",
-                        $"This {HeaderName} was already used for a different request.");
+                        $"This {IdempotentAttribute.HeaderName} was already used for a different request.");
                     return;
                 }
 
@@ -72,7 +81,7 @@ public sealed class IdempotentAttribute : ActionFilterAttribute
             SetRetryAfter(context.HttpContext);
             context.Result = Conflict(
                 "idempotency.inprogress",
-                $"A request with this {HeaderName} is already being processed.");
+                $"A request with this {IdempotentAttribute.HeaderName} is already being processed.");
             return;
         }
 
@@ -107,7 +116,7 @@ public sealed class IdempotentAttribute : ActionFilterAttribute
                 {
                     context.Result = Conflict(
                         "idempotency.keyreuse",
-                        $"This {HeaderName} was already used for a different request.");
+                        $"This {IdempotentAttribute.HeaderName} was already used for a different request.");
                     return;
                 }
 
@@ -118,7 +127,7 @@ public sealed class IdempotentAttribute : ActionFilterAttribute
             SetRetryAfter(context.HttpContext);
             context.Result = Conflict(
                 "idempotency.inprogress",
-                $"A request with this {HeaderName} is already being processed.");
+                $"A request with this {IdempotentAttribute.HeaderName} is already being processed.");
             return;
         }
 
@@ -152,19 +161,19 @@ public sealed class IdempotentAttribute : ActionFilterAttribute
     private static bool TryGetKey(ActionExecutingContext context, out string key)
     {
         key = string.Empty;
-        var header = context.HttpContext.Request.Headers[HeaderName].ToString();
+        var header = context.HttpContext.Request.Headers[IdempotentAttribute.HeaderName].ToString();
 
         if (string.IsNullOrWhiteSpace(header))
         {
             context.Result = new BadRequestObjectResult(Error.Validation(
-                "idempotency.missingkey", $"The {HeaderName} header is required."));
+                "idempotency.missingkey", $"The {IdempotentAttribute.HeaderName} header is required."));
             return false;
         }
 
         if (!Guid.TryParse(header, out var guid))
         {
             context.Result = new BadRequestObjectResult(Error.Validation(
-                "idempotency.invalidkey", $"The {HeaderName} header must be a valid GUID."));
+                "idempotency.invalidkey", $"The {IdempotentAttribute.HeaderName} header must be a valid GUID."));
             return false;
         }
 
