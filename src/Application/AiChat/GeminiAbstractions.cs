@@ -43,6 +43,11 @@ public sealed class GeminiDevelopmentToolArgs
     public string? Status { get; set; }
 }
 
+public sealed class GeminiEscalationArgs
+{
+    public string? Reason { get; set; }
+}
+
 /// <summary>
 /// Accepts a single integer (e.g. {"bedrooms":3}) or an array of integers
 /// (e.g. {"bedrooms":[2,6]}) for the exact-bedroom tool argument.

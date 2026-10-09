@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using PIPDC.Application.AiChat;
 using PIPDC.Application.Auth;
 using PIPDC.Domain.Entities;
 using PIPDC.Domain.Enums;
@@ -480,6 +482,8 @@ public static class DevelopmentSeeder
         await dbContext.SaveChangesAsync();
 
         await SeedAgentTrustAndSafetyAsync(userManager, dbContext, seedPassword, agents, admin);
+
+        await SeedConciergeEscalationAsync(userManager, dbContext);
     }
 
     /// <summary>
@@ -643,6 +647,65 @@ public static class DevelopmentSeeder
                 ResolutionNote = resolution
             });
         }
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    private static async Task SeedConciergeEscalationAsync(
+        UserManager<AppUser> userManager,
+        AppDbContext dbContext)
+    {
+        // Only ever seed the first demo escalation, so repeated application
+        // startups never pile up extra cases.
+        if (await dbContext.ConciergeEscalations.AnyAsync())
+            return;
+
+        // Reuse the review client account, which the trust-and-safety section
+        // guarantees exists before this method runs.
+        var client = await userManager.FindByEmailAsync("bulus.tersoo@example.com");
+        if (client is null)
+            return;
+
+        var now = DateTime.UtcNow;
+        var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+        var messages = new List<PersistedAiMessage>
+        {
+            new()
+            {
+                Role = "user",
+                Content = "I'm looking for a 3-bedroom home in Jos under 40 million naira. Can you help?",
+                SentAt = now.AddHours(-3)
+            },
+            new()
+            {
+                Role = "model",
+                Content = "We don't have a listing that matches exactly what you described, so I've passed your request to the PIPDC team — a team member will follow up with you directly.",
+                SentAt = now.AddHours(-2)
+            }
+        };
+
+        var session = new AiChatSession
+        {
+            UserId = client.Id,
+            Title = "3-bedroom home in Jos under 40 million",
+            MessagesJson = JsonSerializer.Serialize(messages, jsonOpts),
+            LastMessageAt = now.AddHours(-2),
+            CreatedAt = now.AddHours(-3)
+        };
+        dbContext.AiChatSessions.Add(session);
+
+        await dbContext.SaveChangesAsync();
+
+        dbContext.ConciergeEscalations.Add(new ConciergeEscalation
+        {
+            AiChatSessionId = session.Id,
+            EscalationReason = "The client asked for a 3-bedroom home in Jos under 40 million naira, but no listing matches those criteria exactly.",
+            EscalationStatus = ConciergeEscalationStatus.Escalated,
+            EscalatedAt = now.AddHours(-2),
+            CreatedAt = now.AddHours(-2),
+            UpdatedAt = now.AddHours(-2)
+        });
 
         await dbContext.SaveChangesAsync();
     }

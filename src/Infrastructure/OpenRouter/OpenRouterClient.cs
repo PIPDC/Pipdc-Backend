@@ -24,6 +24,7 @@ public sealed class OpenRouterClient(
 {
     private const string SearchToolName = "search_properties";
     private const string DevelopmentToolName = "search_developments";
+    private const string EscalationToolName = "escalate_to_admin";
 
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
     {
@@ -44,7 +45,7 @@ public sealed class OpenRouterClient(
         {
             Model = settings.Model,
             Messages = ToMessages(history, systemPrompt),
-            Tools = new List<ChatTool> { SearchTool, DevelopmentTool },
+            Tools = new List<ChatTool> { SearchTool, DevelopmentTool, EscalationTool },
             ToolChoice = "auto",
             Temperature = 0.4,
             MaxTokens = 800
@@ -328,6 +329,31 @@ public sealed class OpenRouterClient(
             Name = DevelopmentToolName,
             Description = "Looks up PIPDC's ongoing and upcoming property DEVELOPMENT projects — estates and developments still being planned, under construction or near completion — and returns up to six projects with name, status, progress percentage, location, expected completion, unit availability and the latest update. Call it when the user asks about ongoing, upcoming, future, in-progress or under-construction projects, development estates, or investment opportunities still being built. Do NOT use it for finished properties available now — those use search_properties.",
             Parameters = DevelopmentFunctionParameters
+        }
+    };
+
+    private static readonly Dictionary<string, object> EscalationFunctionParameters = new()
+    {
+        ["type"] = "object",
+        ["properties"] = new Dictionary<string, object>
+        {
+            ["reason"] = new Dictionary<string, object>
+            {
+                ["type"] = "string",
+                ["description"] = "Concise reason the chat is being handed to a PIPDC team member, describing what the user needs (aim for under ~200 characters)."
+            }
+        },
+        ["required"] = new[] { "reason" }
+    };
+
+    private static readonly ChatTool EscalationTool = new()
+    {
+        Type = "function",
+        Function = new ChatToolFunction
+        {
+            Name = EscalationToolName,
+            Description = "Hands the conversation to a PIPDC administrator. Call it ONLY when: the user explicitly asks to speak to a human — a PIPDC staff member, an agent, an official — or asks to be contacted or visited in person; or the user raises a PIPDC organizational request that a real person must act on (paperwork, applications, appointments, complaints, transfers, or a definitive answer beyond the organizational profile) and redirecting to the website is not enough. Pass a concise reason describing what the user needs. NEVER call it for trivia, general knowledge, or other out-of-scope questions (those are redirected, not escalated), NEVER call it instead of searching the listings, and NEVER call it for a question the ORGANIZATION PROFILE already answers.",
+            Parameters = EscalationFunctionParameters
         }
     };
 

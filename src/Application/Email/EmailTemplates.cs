@@ -1045,6 +1045,49 @@ public static class EmailTemplates
         };
     }
 
+    public static EmailMessage ConciergeEscalatedToAdmin(
+        string recipientEmail,
+        string clientName,
+        string escalationReason,
+        string baseUrl)
+    {
+        var queueUrl = $"{baseUrl}/dashboard/escalations";
+
+        var html = $"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+          <h2 style="color:#1a5276">A concierge chat needs your help</h2>
+          <p>The AI property assistant referred a client to the {BrandName} team because it could not resolve the request itself.</p>
+          <table style="margin:16px 0;font-size:14px;border-collapse:collapse">
+            <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Client</td>
+                <td style="padding:4px 0">{Esc(clientName)}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Reason</td>
+                <td style="padding:4px 0">{Esc(escalationReason)}</td></tr>
+          </table>
+          <p style="font-size:13px;color:#555">Open the case to read the full chat transcript before reaching out to the client.</p>
+          <a href="{queueUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">Open the escalation queue</a>
+          <p style="font-size:12px;color:#888;margin-top:24px">This is an automated notification from {BrandName}.</p>
+        </div>
+        """;
+
+        var text = $"""
+        A concierge chat needs your help
+
+        The AI property assistant referred a client to {BrandName} because it could not resolve the request itself.
+
+        Client: {clientName}
+        Reason: {escalationReason}
+
+        Open the case to read the full chat transcript before reaching out to the client.
+
+        Open the escalation queue: {queueUrl}
+        """;
+
+        return new EmailMessage(recipientEmail, $"A concierge chat needs help: {clientName}", html, "Review Team", text)
+        {
+            IncludeUnsubscribe = false
+        };
+    }
+
     public static EmailMessage ConversationEscalatedToClient(
         string clientEmail,
         string clientName,
