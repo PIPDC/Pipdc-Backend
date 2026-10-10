@@ -201,6 +201,7 @@ app.Use(async (context, next) =>
            "style-src 'self' 'unsafe-inline'; " +
            "img-src 'self' data:; " +
            "connect-src 'self'; " +
+           "frame-src https://www.google.com; " +
            "frame-ancestors 'none'; " +
            "base-uri 'none'; form-action 'none'";
     }
