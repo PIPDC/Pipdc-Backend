@@ -22,7 +22,8 @@ public sealed record AiChatSessionDto(
     string? Title,
     DateTime LastMessageAt,
     IReadOnlyList<AiChatMessageDto> Messages,
-    ConciergeEscalationDto? Escalation = null);
+    ConciergeEscalationDto? Escalation = null,
+    string? ContactPromptReason = null);
 
 public sealed record SendAiMessageRequest(
     [Required, MaxLength(2000)] string Content);
@@ -30,7 +31,16 @@ public sealed record SendAiMessageRequest(
 public sealed record SendAiMessageResponseDto(
     AiChatSessionDto Session,
     AiChatMessageDto AssistantMessage,
-    ConciergeEscalationDto? Escalation = null);
+    ConciergeEscalationDto? Escalation = null,
+    string? ContactPromptReason = null);
+
+/// <summary>
+/// The client's answer to the concierge's "how should the team reach you?"
+/// question, submitted after the assistant staged a handoff.
+/// </summary>
+public sealed record SubmitContactPreferenceRequest(
+    [Required] string Choice,
+    [MaxLength(32)] string? Phone);
 
 /// <summary>
 /// A row in the admin's concierge escalation queue: the case metadata plus a
@@ -42,6 +52,8 @@ public sealed record ConciergeEscalationDto(
     string ClientUserId,
     string ClientName,
     string ClientEmail,
+    string? ClientPhone,
+    string? ContactPreference,
     string Status,
     string EscalationReason,
     DateTime EscalatedAt,

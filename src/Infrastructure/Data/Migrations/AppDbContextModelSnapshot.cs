@@ -712,6 +712,10 @@ namespace PIPDC.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("PendingEscalationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("Title")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -975,6 +979,14 @@ namespace PIPDC.Infrastructure.Data.Migrations
 
                     b.Property<DateTime?>("AssignedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ClientPhone")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("ContactPreference")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");

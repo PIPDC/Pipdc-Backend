@@ -510,14 +510,14 @@ public static class DevelopmentSeeder
         // accounts, because the API rejects self-review.
         var clients = new[]
         {
-            ("Bulus", "Tersoo", "bulus.tersoo@example.com"),
-            ("Nanfear", "Doris", "nanfear.doris@example.com"),
-            ("Ishaya", "Rita", "ishaya.rita@example.com"),
-            ("Monday", "Emmanuel", "monday.emmanuel@example.com"),
+            ("Bulus", "Tersoo", "bulus.tersoo@example.com", "+234 803 555 0147"),
+            ("Nanfear", "Doris", "nanfear.doris@example.com", "+234 805 555 0182"),
+            ("Ishaya", "Rita", "ishaya.rita@example.com", "+234 806 555 0119"),
+            ("Monday", "Emmanuel", "monday.emmanuel@example.com", "+234 807 555 0163"),
         };
 
         var clientUsers = new Dictionary<string, AppUser>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (first, last, email) in clients)
+        foreach (var (first, last, email, phone) in clients)
         {
             var user = await userManager.FindByEmailAsync(email);
             if (user is null)
@@ -528,6 +528,7 @@ public static class DevelopmentSeeder
                     Email = email,
                     FirstName = first,
                     LastName = last,
+                    PhoneNumber = phone,
                     EmailConfirmed = true,
                     CreatedAt = now.AddDays(-45)
                 };
@@ -538,6 +539,13 @@ public static class DevelopmentSeeder
                         $"Failed to seed review client {email}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
 
                 await userManager.AddToRoleAsync(user, Roles.User);
+            }
+            else if (string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                // Backfill so the concierge-escalation demo can show a client phone
+                // number on databases seeded before phone numbers were added.
+                user.PhoneNumber = phone;
+                await userManager.UpdateAsync(user);
             }
 
             clientUsers[email] = user;
@@ -680,7 +688,19 @@ public static class DevelopmentSeeder
             new()
             {
                 Role = "model",
-                Content = "We don't have a listing that matches exactly what you described, so I've passed your request to the PIPDC team — a team member will follow up with you directly.",
+                Content = "We don't have a listing that matches exactly what you described, so a member of the PIPDC team will follow up with you. Before I hand you over, how would you like them to reach you — by email only, or by email and phone?",
+                SentAt = now.AddHours(-2).AddMinutes(-30)
+            },
+            new()
+            {
+                Role = "user",
+                Content = "Email and phone, please.",
+                SentAt = now.AddHours(-2).AddMinutes(-15)
+            },
+            new()
+            {
+                Role = "model",
+                Content = "Thanks — I've passed your details to the PIPDC team, and they'll follow up by email and phone.",
                 SentAt = now.AddHours(-2)
             }
         };
@@ -702,6 +722,8 @@ public static class DevelopmentSeeder
             AiChatSessionId = session.Id,
             EscalationReason = "The client asked for a 3-bedroom home in Jos under 40 million naira, but no listing matches those criteria exactly.",
             EscalationStatus = ConciergeEscalationStatus.Escalated,
+            ContactPreference = ConciergeContactPreference.EmailAndPhone,
+            ClientPhone = "+234 803 555 0147",
             EscalatedAt = now.AddHours(-2),
             CreatedAt = now.AddHours(-2),
             UpdatedAt = now.AddHours(-2)
