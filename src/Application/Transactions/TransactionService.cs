@@ -82,7 +82,6 @@ public class TransactionService(
             if (saved.IsFailure)
                 return Result<TransactionDto>.Failure(saved.Error);
 
-            await transaction.CommitAsync(ct);
             logger.LogInformation("Sale recorded for property {PropertyId} by {UserId} at {Amount}.", propertyId, currentUserId, request.SalePrice);
 
             return Result<TransactionDto>.Success(await LoadSaleAsync(sale.Id, ct));
@@ -154,7 +153,6 @@ public class TransactionService(
             if (saved.IsFailure)
                 return Result<TransactionDto>.Failure(saved.Error);
 
-            await transaction.CommitAsync(ct);
             logger.LogInformation("Lease recorded for property {PropertyId} by {UserId} at {Rent} per month.", propertyId, currentUserId, request.MonthlyRent);
 
             return Result<TransactionDto>.Success(await LoadLeaseAsync(lease.Id, ct));
