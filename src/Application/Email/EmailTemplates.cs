@@ -1048,10 +1048,26 @@ public static class EmailTemplates
     public static EmailMessage ConciergeEscalatedToAdmin(
         string recipientEmail,
         string clientName,
+        string? clientPhone,
+        string? contactPreference,
         string escalationReason,
         string baseUrl)
     {
         var queueUrl = $"{baseUrl}/dashboard/escalations";
+
+        var contactChannel = contactPreference switch
+        {
+            "EmailAndPhone" => "By email and phone",
+            "Email" => "By email only",
+            _ => "Not stated"
+        };
+
+        var phoneRow = string.IsNullOrWhiteSpace(clientPhone)
+            ? string.Empty
+            : $"""
+            <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Phone</td>
+                <td style="padding:4px 0">{Esc(clientPhone)}</td></tr>
+            """;
 
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -1060,6 +1076,9 @@ public static class EmailTemplates
           <table style="margin:16px 0;font-size:14px;border-collapse:collapse">
             <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Client</td>
                 <td style="padding:4px 0">{Esc(clientName)}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Contact</td>
+                <td style="padding:4px 0">{contactChannel}</td></tr>
+            {phoneRow}
             <tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">Reason</td>
                 <td style="padding:4px 0">{Esc(escalationReason)}</td></tr>
           </table>
@@ -1075,6 +1094,7 @@ public static class EmailTemplates
         The AI property assistant referred a client to {BrandName} because it could not resolve the request itself.
 
         Client: {clientName}
+        Contact: {contactChannel}{(string.IsNullOrWhiteSpace(clientPhone) ? string.Empty : $"\nPhone: {clientPhone}")}
         Reason: {escalationReason}
 
         Open the case to read the full chat transcript before reaching out to the client.

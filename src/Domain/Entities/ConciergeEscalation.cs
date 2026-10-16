@@ -28,6 +28,20 @@ public class ConciergeEscalation : AuditableEntity
     /// <summary>UTC timestamp when the concierge handed the chat to PIPDC.</summary>
     public DateTime EscalatedAt { get; set; }
 
+    /// <summary>
+    /// How the client asked to be reached. Collected by the concierge before the
+    /// handoff so the administrator never guesses at a contact channel.
+    /// Null only for cases created before this was introduced.
+    /// </summary>
+    public ConciergeContactPreference? ContactPreference { get; set; }
+
+    /// <summary>
+    /// The number the client shared for the handoff. Populated only when they
+    /// asked to be contacted by phone as well as by email; may fall back to the
+    /// number on their account when they reused it.
+    /// </summary>
+    public string? ClientPhone { get; set; }
+
     /// <summary>The administrator who currently owns the case. Null until one claims it.</summary>
     public string? AssignedAdminId { get; set; }
 

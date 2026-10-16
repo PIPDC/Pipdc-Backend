@@ -26,6 +26,17 @@ public class ConciergeEscalationConfiguration : IEntityTypeConfiguration<Concier
         builder.Property(e => e.AssignedAdminId).HasMaxLength(450);
         builder.Property(e => e.ResolvedByUserId).HasMaxLength(450);
 
+        // Contact details the client chose during the handoff. Both are nullable:
+        // older cases predate the contact-preference question, and an
+        // email-only client has no phone to store.
+        builder.Property(e => e.ClientPhone).HasMaxLength(32);
+
+        // Stored as a string for the same reason as the status: the column stays
+        // readable and a new preference can be added without renumbering.
+        builder.Property(e => e.ContactPreference)
+            .HasConversion<string>()
+            .HasMaxLength(50);
+
         // The escalation lives for exactly as long as its transcript: deleting the
         // chat session removes the case along with the history.
         builder.HasOne(e => e.AiChatSession)

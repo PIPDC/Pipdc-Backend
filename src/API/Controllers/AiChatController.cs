@@ -30,6 +30,15 @@ public class AiChatController(IAiChatService aiChatService) : ControllerBase
         return result.ToActionResult();
     }
 
+    // Answered the concierge's "how should the team reach you?" question; opens the
+    // case that SendAsync staged.
+    [HttpPost("session/contact-preference")]
+    public async Task<IActionResult> SubmitContactPreference([FromBody] SubmitContactPreferenceRequest request, CancellationToken ct)
+    {
+        var result = await aiChatService.SubmitContactPreferenceAsync(CurrentUserId, request.Choice, request.Phone, ct);
+        return result.ToActionResult();
+    }
+
     [HttpDelete("session")]
     public async Task<IActionResult> DeleteSession(CancellationToken ct)
     {

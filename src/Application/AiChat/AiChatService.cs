@@ -59,7 +59,7 @@ public class AiChatService(
         " 4. When a search returns results, recommend at most three of the returned listings and briefly highlight one or two relevant features of each. Never describe listings the search did not return." +
         " 5. Only present properties that match ALL of the user's stated criteria (bedrooms, location, budget, listing type). Do NOT mention, suggest, or link properties that fall outside the requested criteria, even as a bonus or alternative, unless the user explicitly asks for broader or similar options, or unless zero exact matches exist — in that case, and ONLY in that case, you may suggest the closest available alternatives and clearly label them as not an exact match." +
         " 6. For specific bedroom counts, match exactly: '3-bedroom' means exactly 3 bedrooms, and '2 or 6 bedrooms' means 2 AND 6 bedrooms. Never treat a stated count as a minimum, never broaden a count on your own, and never add your own counts to the user's request." +
-        " 7. If the property search finds no exact matches (including when nothing matches at all), the request is automatically referred to the PIPDC team instead of being answered with closest alternatives. Your reply at that point is only a short, warm confirmation that a team member will follow up — never list alternative or broader options, and never try to re-broaden the search yourself." +
+        " 7. If the property search finds no exact matches (including when nothing matches at all), the request is automatically referred to the PIPDC team instead of being answered with closest alternatives. Your reply at that point is only a short, warm message explaining that a team member will follow up and asking the user to choose, using the options shown below, how the team should contact them — never list alternative or broader options, and never try to re-broaden the search yourself." +
         " 8. Be concise and friendly. Prices keep the currency the marketplace uses." +
         " 9. NEVER mention internal tool names, function names, technical API details, or system architecture in anything you say to the user — including if the user directly asks what you run on or how you work. Always speak as a helpful property expert; describe your capabilities in plain language such as 'checking our listings', 'checking our development projects' or 'searching our database', never as a 'tool', 'function', or 'API'." +
         " 10. When the user asks about ongoing, upcoming, future or under-construction property DEVELOPMENT projects at PIPDC, use your development-project lookup and recommend the real projects it returns, with their name, status, location and progress. NEVER claim you have no information about development projects, NEVER substitute available property listings for an active development, and do NOT send the user to the website to find projects — present the actual projects and offer to detail one or talk about tracking it." +
@@ -67,7 +67,7 @@ public class AiChatService(
         " 12. When the user asks why to choose PIPDC or how PIPDC compares with other platforms, answer with the concrete differentiators in the ORGANIZATION PROFILE (government backing, exclusive Plateau State focus, own development projects, verified in-house agents, and this AI concierge) instead of a generic summary, and only point to the website for contact details or further verification." +
         " 13. The property search results already contain full descriptions, amenities, sizes, bathrooms, tenure and other specs for every listing. When you present a listing, give enough real detail from that data — price/rent and tenure, location, bedrooms/bathrooms, and the notable amenities or described interior features — so that the details stay available for follow-up questions. If the user then asks for more details, interiors, amenities, or a closer look at a property already discussed (e.g. 'yes please', 'tell me more', 'what are the interiors like'), answer immediately from those provided details; describe the interiors, amenities and layout from the description, and NEVER invent features that were not provided. Do not ask 'which property?' if the context makes the property clear." +
         " 14. When the user asks which property you would pick, which they should choose, or to compare options genuinely (e.g. 'which one would you pick?', 'if you were in my shoes', 'recommend one for me'), make a real choice among the returned options using the details provided (price and tenure, size, bedrooms/bathrooms, amenities, neighbourhood, and the user's stated purpose such as family living, renting, or investing), explain the reasoning, and say plainly what you would pick — do NOT refuse with 'I can't express opinions' or 'I can't recommend one over another'. If an agent is involved, tie your pick to the agent handling the chosen property." +
-        " 15. When the user explicitly asks to speak to a human — a PIPDC staff member, an agent, an official — asks to be contacted or visited in person, or raises a PIPDC organizational request that a real person must act on (paperwork, applications, appointments, complaints, transfers, or a definitive answer not covered by the ORGANIZATION PROFILE), call escalate_to_admin with a concise reason describing what the user needs. NEVER call it for trivia, general knowledge, or other out-of-scope questions (those are redirected, not escalated); NEVER call it instead of searching the listings; and NEVER call it for an organizational question the ORGANIZATION PROFILE already answers.";
+        " 15. When the user explicitly asks to speak to a human — a PIPDC staff member, an agent, an official — asks to be contacted or visited in person, or raises a PIPDC organizational request that a real person must act on (paperwork, applications, appointments, complaints, transfers, or a definitive answer not covered by the ORGANIZATION PROFILE), call escalate_to_admin with a concise reason describing what the user needs. NEVER call it for trivia, general knowledge, or other out-of-scope questions (those are redirected, not escalated); NEVER call it instead of searching the listings; and NEVER call it for an organizational question the ORGANIZATION PROFILE already answers. The handoff finishes only once the user picks how the team should contact them (using the options that appear), so before that, ask them to select their preferred channel.";
 
     private const string ClarificationHint =
         "The user has not given enough detail to search the listings. Ask ONE short clarifying question requesting: the preferred location, and either a budget range or a specific neighbourhood/area.";
@@ -83,13 +83,18 @@ public class AiChatService(
 
         var persisted = DeserializeMessages(session.MessagesJson);
         return Result<AiChatSessionDto>.Success(
-            ToSessionDto(session, persisted, await LatestOpenEscalationDtoAsync(session.Id, ct)));
+            ToSessionDto(session, persisted, await LatestOpenEscalationDtoAsync(session.Id, ct), session.PendingEscalationReason));
     }
 
     public async Task<Result<SendAiMessageResponseDto>> SendAsync(string userId, string content, CancellationToken ct)
     {
         var session = await LoadSessionAsync(userId, ct);
         var persisted = session is null ? new List<PersistedAiMessage>() : DeserializeMessages(session.MessagesJson);
+
+        // The contact-preference question is answered through its own endpoint, so
+        // a fresh chat message means the client moved on: cancel any pending handoff.
+        if (session?.PendingEscalationReason is not null)
+            session.PendingEscalationReason = null;
 
         var history = persisted
             .TakeLast(11)
@@ -131,8 +136,9 @@ public class AiChatService(
                 escalationReason = reason;
 
                 var toolResultText =
-                    "The chat has been handed to the PIPDC team; a team member will follow up with the user directly. " +
-                    "Confirm this briefly and warmly. Do not keep trying to resolve the request yourself.";
+                    "The chat will be handed to the PIPDC team; a team member will follow up with the user directly. " +
+                    "Tell the user briefly and warmly, ask them to choose how the team should contact them using the options that appear, " +
+                    "and do not keep trying to resolve the request yourself.";
 
                 try
                 {
@@ -192,8 +198,9 @@ public class AiChatService(
                         shouldEscalate = true;
                         escalationReason = $"No property matches the client's request ({DescribeCriteria(args)}).";
                         toolResultText =
-                            "The property search found no exact match in the live listings for the user's criteria, and the request will be referred to the PIPDC team. " +
-                            "Confirm this briefly and warmly to the user. Do not present alternative listings and do not ask the user to broaden their search.";
+                            "The property search found no exact match in the live listings for the user's criteria; the chat will be handed to the PIPDC team. " +
+                            "Tell the user briefly and warmly that a team member will follow up, ask them to choose how the team should contact them using the options that appear, " +
+                            "and do not present alternative listings, do not ask the user to broaden their search, and do not resolve the request yourself.";
                     }
                     else
                     {
@@ -232,8 +239,16 @@ public class AiChatService(
         }
 
         ConciergeEscalation? escalation = null;
+        string? contactPromptReason = null;
         if (shouldEscalate)
-            escalation = await StageEscalationAsync(session, escalationReason, ct);
+        {
+            // Two-phase handoff: park the referral on the session and ask the
+            // client how the team may contact them before a case is opened and
+            // admins are notified. The case is created by
+            // SubmitContactPreferenceAsync once the client answers.
+            session.PendingEscalationReason = escalationReason;
+            contactPromptReason = escalationReason;
+        }
 
         persisted.Add(new PersistedAiMessage { Role = "user", Content = content, SentAt = DateTime.UtcNow });
         persisted.Add(new PersistedAiMessage
@@ -259,7 +274,70 @@ public class AiChatService(
         }
 
         return Result<SendAiMessageResponseDto>.Success(
-            new SendAiMessageResponseDto(ToSessionDto(session, persisted, escalationDto), assistantDto, escalationDto));
+            new SendAiMessageResponseDto(
+                ToSessionDto(session, persisted, escalationDto, contactPromptReason),
+                assistantDto,
+                escalationDto,
+                contactPromptReason));
+    }
+
+    public async Task<Result<SendAiMessageResponseDto>> SubmitContactPreferenceAsync(
+        string userId, string choice, string? phone, CancellationToken ct)
+    {
+        var session = await LoadSessionAsync(userId, ct);
+        if (session is null)
+            return Result<SendAiMessageResponseDto>.Failure(
+                Error.NotFound("aichat.nosession", "No AI assistant session exists yet."));
+
+        if (string.IsNullOrWhiteSpace(session.PendingEscalationReason))
+            return Result<SendAiMessageResponseDto>.Failure(
+                Error.Validation("aichat.nopendingescalation", "There is no escalation waiting for a contact preference."));
+
+        var reason = session.PendingEscalationReason;
+
+        if (!Enum.TryParse<ConciergeContactPreference>(choice, true, out var preference))
+            return Result<SendAiMessageResponseDto>.Failure(
+                Error.Validation("aichat.badchoice", "Choose either email only or email and phone."));
+
+        var contactPhone = preference == ConciergeContactPreference.EmailAndPhone ? phone?.Trim() : null;
+        if (preference == ConciergeContactPreference.EmailAndPhone && string.IsNullOrWhiteSpace(contactPhone))
+            return Result<SendAiMessageResponseDto>.Failure(
+                Error.Validation("aichat.phonerequired", "Share a phone number so the team can reach you."));
+
+        var now = DateTime.UtcNow;
+        var persisted = DeserializeMessages(session.MessagesJson);
+
+        // The question has been answered: clear it and open the case in the same
+        // SaveChanges that records the confirmation message.
+        session.PendingEscalationReason = null;
+
+        var escalation = await StageEscalationAsync(session, reason, ct);
+        escalation.ContactPreference = preference;
+        escalation.ClientPhone = contactPhone;
+        escalation.UpdatedAt = now;
+
+        persisted.Add(new PersistedAiMessage
+        {
+            Role = "model",
+            Content = preference == ConciergeContactPreference.EmailAndPhone
+                ? "Thanks — I've passed your details to the PIPDC team, and they'll follow up by email and phone."
+                : "Thanks — I've passed your details to the PIPDC team, and they'll follow up by email.",
+            SentAt = now
+        });
+
+        session.MessagesJson = JsonSerializer.Serialize(persisted, JsonOpts);
+        session.LastMessageAt = now;
+
+        await dbContext.SaveChangesAsync(ct);
+
+        var escalationDto = await ConciergeEscalationProjections.SingleAsync(dbContext, escalation.Id, ct);
+        NotifyAdminsAsync(escalationDto, ct);
+
+        return Result<SendAiMessageResponseDto>.Success(
+            new SendAiMessageResponseDto(
+                ToSessionDto(session, persisted, escalationDto),
+                ToMessageDto(persisted[^1]),
+                escalationDto));
     }
 
     public async Task<Result> DeleteAsync(string userId, CancellationToken ct)
@@ -602,6 +680,8 @@ public class AiChatService(
                 EmailTemplates.ConciergeEscalatedToAdmin(
                     recipient,
                     escalation.ClientName,
+                    escalation.ClientPhone,
+                    escalation.ContactPreference,
                     escalation.EscalationReason,
                     gmailOptions.Value.FrontendBaseUrl),
                 $"concierge-escalated:{escalation.Id}",
@@ -617,8 +697,8 @@ public class AiChatService(
         Error.Failure("aichat.unavailable", "The AI assistant is temporarily unavailable. Please try again shortly.");
 
     private static AiChatSessionDto ToSessionDto(
-        AiChatSession session, List<PersistedAiMessage> messages, ConciergeEscalationDto? escalation = null) =>
-        new(session.Id, session.Title, session.LastMessageAt, messages.Select(ToMessageDto).ToList(), escalation);
+        AiChatSession session, List<PersistedAiMessage> messages, ConciergeEscalationDto? escalation = null, string? contactPromptReason = null) =>
+        new(session.Id, session.Title, session.LastMessageAt, messages.Select(ToMessageDto).ToList(), escalation, contactPromptReason);
 
     private static AiChatMessageDto ToMessageDto(PersistedAiMessage message) =>
         new(message.Role, message.Content, message.SentAt, message.Properties);

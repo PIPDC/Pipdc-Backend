@@ -17,6 +17,10 @@ internal static class ConciergeEscalationProjections
             e.AiChatSession.User.FirstName,
             e.AiChatSession.User.LastName,
             e.AiChatSession.User.Email ?? string.Empty,
+            // Prefer the number the client shared with the concierge; fall back to
+            // the one on their account so older cases still surface a phone.
+            e.ClientPhone ?? e.AiChatSession.User.PhoneNumber,
+            e.ContactPreference == null ? null : e.ContactPreference.ToString(),
             e.AiChatSession.LastMessageAt,
             e.AiChatSession.MessagesJson,
             e.EscalationStatus.ToString(),
@@ -45,6 +49,8 @@ internal static class ConciergeEscalationProjections
             p.ClientUserId,
             $"{p.ClientFirstName} {p.ClientLastName}".Trim(),
             p.ClientEmail,
+            p.ClientPhone,
+            p.ContactPreference,
             p.EscalationStatus,
             p.EscalationReason,
             p.EscalatedAt,
@@ -97,6 +103,8 @@ internal static class ConciergeEscalationProjections
         string ClientFirstName,
         string ClientLastName,
         string ClientEmail,
+        string? ClientPhone,
+        string? ContactPreference,
         DateTime? LastMessageAt,
         string MessagesJson,
         string EscalationStatus,
