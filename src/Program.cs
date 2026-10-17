@@ -173,11 +173,26 @@ app.UseExceptionHandler();
 // partition anonymous callers by their true IP and not the proxy's. Placed as early
 // as possible (immediately after error handling) so downstream middleware reads the
 // corrected IP.
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+var forwardedHeaders = new ForwardedHeadersOptions
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-    KnownNetworks = { new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Loopback, 8) }
-});
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+
+if (app.Environment.IsDevelopment())
+{
+    // Locally the only reverse proxy sits on the loopback interface.
+    forwardedHeaders.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Loopback, 8));
+}
+else
+{
+    // Hosted behind a managed proxy (e.g. Render) whose address is not known in
+    // advance. Trust its X-Forwarded-* headers so rate limiting partitions by the
+    // real client IP and the app sees the correct external scheme.
+    forwardedHeaders.KnownNetworks.Clear();
+    forwardedHeaders.KnownProxies.Clear();
+}
+
+app.UseForwardedHeaders(forwardedHeaders);
 
 // Security headers: HSTS (https-only responses) + hardening headers for every API
 // response. They are set for every request so error paths are covered too.

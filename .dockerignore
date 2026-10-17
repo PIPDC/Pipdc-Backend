@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+.git/
+.vs/
+.vscode/
+*.user
+*.suo
+log.txt
+docs/
+pdfx/
+scripts/
+"Final Year Project"/
+Dockerfile
+.dockerignore
