@@ -2,8 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# Restore against the project file alone so this layer is cached until the
-# package graph changes.
+# Restore against the project file so this layer is cached until the package
+# graph changes. Directory.Build.props must be present too: it supplies
+# TargetFramework/Nullable/ImplicitUsings to the csproj.
+COPY Directory.Build.props ./
 COPY src/PIPDC.csproj src/
 RUN dotnet restore src/PIPDC.csproj
 
