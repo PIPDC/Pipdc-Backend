@@ -80,4 +80,36 @@ public class TransactionsController(ITransactionService transactionService) : Co
         var result = await transactionService.GetAnalyticsAsync(from, to, CurrentUserId, CurrentUserRoles, ct);
         return result.ToActionResult();
     }
+
+    /// <summary>Admin-only roster of tenants currently occupying a rented property.</summary>
+    [HttpGet("tenants")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> GetTenants(CancellationToken ct)
+    {
+        var result = await transactionService.GetTenantsAsync(CurrentUserId, CurrentUserRoles, ct);
+        return result.ToActionResult();
+    }
+
+    /// <summary>Admin-only roster of clients who purchased a property.</summary>
+    [HttpGet("purchasers")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> GetPurchasers(CancellationToken ct)
+    {
+        var result = await transactionService.GetPurchasersAsync(CurrentUserId, CurrentUserRoles, ct);
+        return result.ToActionResult();
+    }
+
+    /// <summary>
+    /// Admin-only. Emails the tenant the time left on their lease. [Idempotent]
+    /// so a double-click replays the first response instead of mailing twice.
+    /// </summary>
+    [HttpPost("leases/{leaseId:int}/notify")]
+    [Authorize(Roles = Roles.Admin)]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    [Idempotent]
+    public async Task<IActionResult> NotifyTenant(int leaseId, CancellationToken ct)
+    {
+        var result = await transactionService.NotifyTenantAsync(leaseId, CurrentUserId, CurrentUserRoles, ct);
+        return result.ToActionResult();
+    }
 }

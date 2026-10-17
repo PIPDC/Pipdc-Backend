@@ -13,9 +13,13 @@ public class LeaseRecordConfiguration : IEntityTypeConfiguration<LeaseRecord>
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(l => l.TenantContact)
+        builder.Property(l => l.TenantEmail)
             .IsRequired()
-            .HasMaxLength(200);
+            .HasMaxLength(255);
+
+        builder.Property(l => l.TenantPhone)
+            .IsRequired()
+            .HasMaxLength(50);
 
         builder.Property(l => l.MonthlyRent)
             .HasColumnType("decimal(18,2)");

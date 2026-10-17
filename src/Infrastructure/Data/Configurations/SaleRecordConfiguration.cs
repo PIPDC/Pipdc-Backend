@@ -16,9 +16,13 @@ public class SaleRecordConfiguration : IEntityTypeConfiguration<SaleRecord>
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(s => s.BuyerContact)
+        builder.Property(s => s.BuyerEmail)
             .IsRequired()
-            .HasMaxLength(200);
+            .HasMaxLength(255);
+
+        builder.Property(s => s.BuyerPhone)
+            .IsRequired()
+            .HasMaxLength(50);
 
         builder.Property(s => s.Notes)
             .HasMaxLength(4000);

@@ -6,11 +6,20 @@ namespace PIPDC.Domain.Entities;
 public class LeaseRecord : AuditableEntity
 {
     public string TenantName { get; set; } = string.Empty;
-    public string TenantContact { get; set; } = string.Empty;
+    public string TenantEmail { get; set; } = string.Empty;
+    public string TenantPhone { get; set; } = string.Empty;
     public decimal MonthlyRent { get; set; }
     public DateTime LeaseStartDate { get; set; }
     public DateTime LeaseEndDate { get; set; }
     public string? Notes { get; set; }
+
+    /// <summary>
+    /// When the automatic rent-expiry reminder was last sent for this tenancy.
+    /// Null means it has never gone out. The reminder worker sets this after a
+    /// send so a tenancy inside the notice window is mailed exactly once, rather
+    /// than on every scan.
+    /// </summary>
+    public DateTime? RentReminderSentAt { get; set; }
 
     /// <summary>
     /// State of the lease agreement. Independent of
@@ -29,7 +38,8 @@ public class LeaseRecord : AuditableEntity
 
     /// <summary>
     /// The tenant's user account, when the tenancy came from a registered client.
-    /// <see cref="TenantContact"/> remains the authoritative free-text record.
+    /// <see cref="TenantEmail"/> and <see cref="TenantPhone"/> remain the
+    /// authoritative free-text record.
     /// </summary>
     public string? TenantUserId { get; set; }
 

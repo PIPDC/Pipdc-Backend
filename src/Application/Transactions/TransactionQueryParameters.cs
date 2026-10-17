@@ -62,14 +62,16 @@ public class TransactionDto
     public decimal? SalePrice { get; set; }
     public DateTime? SaleDate { get; set; }
     public string? BuyerName { get; set; }
-    public string? BuyerContact { get; set; }
+    public string? BuyerEmail { get; set; }
+    public string? BuyerPhone { get; set; }
 
     // Lease-specific.
     public decimal? MonthlyRent { get; set; }
     public DateTime? LeaseStartDate { get; set; }
     public DateTime? LeaseEndDate { get; set; }
     public string? TenantName { get; set; }
-    public string? TenantContact { get; set; }
+    public string? TenantEmail { get; set; }
+    public string? TenantPhone { get; set; }
 
     public string? CounterpartyUserId { get; set; }
     public string RecordedByUserId { get; set; } = string.Empty;

@@ -50,24 +50,12 @@ public static class DevelopmentSeeder
         // ---------------------------------------------------------------
         var agentSeed = new[]
         {
-            new AgentSeed("Nankin", "Bagudu", "nankin.bagudu@pipdc.gov.ng", "Principal Property Consultant", "+234 803 555 0142",
-                "Nankin leads the residential advisory desk at PIPDC, specialising in premium homes across Jos, Rayfield and Bukuru. Over a decade of experience guiding families and investors through verified transactions.",
-                "https://images.pexels.com/photos/2182970/pexels-photo-2182970.jpeg?auto=compress&cs=tinysrgb&w=800"),
-            new AgentSeed("Grace", "Ibrahim", "grace.ibrahim@pipdc.gov.ng", "Commercial Property Specialist", "+234 805 555 0178",
-                "Grace advises businesses and institutions on commercial leasing and acquisition across Plateau State, with a focus on retail, office and mixed-use developments.",
-                "https://images.pexels.com/photos/3760263/pexels-photo-3760263.jpeg?auto=compress&cs=tinysrgb&w=800"),
             new AgentSeed("Daniel", "Dachung", "agbojimentor@gmail.com", "Land & Investment Advisor", "+234 802 555 0193",
                 "Daniel is PIPDC's lead land advisor, helping investors identify titled plots and agricultural holdings with clear documentation across the Plateau.",
                 "https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=800"),
-            new AgentSeed("Aisha", "Mohammed", "aisha.mohammed@pipdc.gov.ng", "Leasing & Rental Consultant", "+234 807 555 0124",
-                "Aisha manages the leasing desk, connecting tenants with quality apartments and family homes across Jos metropolis and surrounding districts.",
-                "https://images.pexels.com/photos/3727464/pexels-photo-3727464.jpeg?auto=compress&cs=tinysrgb&w=800"),
             new AgentSeed("Stephen", "Pam", "liderintegratedservices@gmail.com", "Luxury Estates Manager", "+234 809 555 0166",
                 "Stephen curates PIPDC's luxury portfolio, representing the finest estates and penthouses in Rayfield, Lamingo and the Jos Plateau highlands.",
                 "https://images.pexels.com/photos/3785067/pexels-photo-3785067.jpeg?auto=compress&cs=tinysrgb&w=800"),
-            new AgentSeed("Maryam", "Audu", "maryam.audu@pipdc.gov.ng", "First-Time Buyer Advisor", "+234 806 555 0188",
-                "Maryam supports first-time buyers through every step of ownership, from documentation to financing referrals, with patience and clarity.",
-                "https://images.pexels.com/photos/5905789/pexels-photo-5905789.jpeg?auto=compress&cs=tinysrgb&w=800"),
         };
 
         var agents = new List<Agent>();
@@ -176,7 +164,7 @@ public static class DevelopmentSeeder
                 185_000_000m, null, PropertyType.Villa, ListingType.ForSale, 6, 5, 520d, 1200d, 2022,
                 "12 Highland Drive, Rayfield", "Jos", "Rayfield", "Plateau", 9.8965, 8.8924,
                 ["Swimming Pool", "Garden", "Garage", "Air Conditioning", "Solar Power", "CCTV", "Borehole", "Furnished"],
-                "villa", true, 5, 33),
+                "villa", true, 2, 33),
             new PropertySeed("Contemporary Family Home in Lamingo", "contemporary-family-home-lamingo",
                 "Modern family residence in a quiet, paved neighbourhood of Lamingo. Open-plan kitchen, en-suite bedrooms, and a landscaped backyard make this an ideal long-term home.",
                 78_000_000m, null, PropertyType.DetachedHouse, ListingType.ForSale, 4, 3, 320d, 600d, 2021,
@@ -188,19 +176,19 @@ public static class DevelopmentSeeder
                 120_000_000m, null, PropertyType.Penthouse, ListingType.ForSale, 3, 3, 280d, null, 2023,
                 "Plateau Towers, Ahmadu Bello Way", "Jos", "City Centre", "Plateau", 9.9265, 8.8922,
                 ["Air Conditioning", "Gym", "Concierge", "Parking", "Elevator", "Furnished"],
-                "penthouse", true, 5, 31),
+                "penthouse", true, 2, 31),
             new PropertySeed("Titled Land Parcel in Bukuru", "titled-land-bukuru",
                 "A well-located, titled parcel of land suitable for residential development or long-term investment. All documentation verified by PIPDC.",
                 35_000_000m, null, PropertyType.Land, ListingType.ForSale, null, null, 1500d, null, null,
                 "Bukuru Layout, Jos South", "Jos", "Bukuru", "Plateau", 9.8465, 8.8724,
                 ["Fenced", "Titled", "Borehole Ready", "Paved Access"],
-                "land", false, 3, 38),
+                "land", false, 1, 38),
             new PropertySeed("Luxury Apartment for Lease in Rayfield", "luxury-apartment-lease-rayfield",
                 "Fully furnished apartment available for lease in a serviced estate. Includes 24/7 security, backup power, and access to shared amenities.",
                 4_500_000m, "/ year", PropertyType.Apartment, ListingType.ForLease, 3, 2, 180d, null, 2022,
                 "Rayfield Gardens Estate, Rayfield", "Jos", "Rayfield", "Plateau", 9.8965, 8.8924,
                 ["Furnished", "Air Conditioning", "Gym", "Swimming Pool", "Security", "Backup Power"],
-                "apartment", true, 4, 32),
+                "apartment", true, 1, 32),
             new PropertySeed("Commercial Retail Space on Ahmadu Bello Way", "commercial-retail-ahmadu-bello",
                 "Ground-floor retail space on Jos's busiest commercial corridor. High foot traffic, ample parking, and flexible fit-out options.",
                 18_000_000m, "/ year", PropertyType.Commercial, ListingType.ForLease, null, 2, 240d, null, null,
@@ -218,31 +206,31 @@ public static class DevelopmentSeeder
                 320_000_000m, null, PropertyType.Mansion, ListingType.ForSale, 8, 7, 780d, 2000d, 2024,
                 "1 Hilltop Road, Lamingo", "Jos", "Lamingo", "Plateau", 9.9216, 8.9086,
                 ["Swimming Pool", "Garden", "Garage", "Air Conditioning", "Solar Power", "CCTV", "Borehole", "Staff Quarters", "Guest Wing"],
-                "mansion", true, 5, 34),
+                "mansion", true, 2, 34),
             new PropertySeed("Modern Apartment in Bukuru", "modern-apartment-bukuru",
                 "Affordable modern apartment close to schools and markets. A solid entry point for first-time buyers and investors.",
                 32_000_000m, null, PropertyType.Apartment, ListingType.ForSale, 2, 2, 95d, null, 2020,
                 "Block C, Bukuru Heights", "Jos", "Bukuru", "Plateau", 9.8465, 8.8724,
                 ["Parking", "Security", "Borehole"],
-                "apartment", false, 6, 42),
+                "apartment", false, 1, 42),
             new PropertySeed("Semi-Detached Home in Jos North", "semi-detached-jos-north",
                 "A well-maintained semi-detached home in a family-friendly neighbourhood with easy access to schools and places of worship.",
                 58_000_000m, null, PropertyType.SemiDetached, ListingType.ForSale, 3, 2, 210d, null, 2019,
                 "5 Tenti Road, Jos North", "Jos", "Jos North", "Plateau", 9.9565, 8.8822,
                 ["Garage", "Borehole", "Garden"],
-                "house", false, 1, 45),
+                "house", false, 2, 45),
             new PropertySeed("Terrace Duplex in Rayfield Gardens", "terrace-duplex-rayfield-gardens",
                 "Brand-new terrace duplex with contemporary finishes, fitted kitchen, and a private backyard. Ready to move in.",
                 88_000_000m, null, PropertyType.Terrace, ListingType.ForSale, 4, 3, 240d, null, 2024,
                 "Plot 14, Rayfield Gardens", "Jos", "Rayfield", "Plateau", 9.8965, 8.8924,
                 ["Fitted Kitchen", "Air Conditioning", "Security", "Parking"],
-                "penthouse", false, 4, 47),
+                "penthouse", false, 2, 47),
             new PropertySeed("Office Suite for Lease in City Centre", "office-suite-lease-city-centre",
                 "Professional office suite with partitioned rooms, server area, and dedicated parking. Suitable for SMEs and consultancies.",
                 12_000_000m, "/ year", PropertyType.Commercial, ListingType.ForLease, null, 2, 180d, null, null,
                 "2nd Floor, Plateau House, Jos", "Jos", "City Centre", "Plateau", 9.9265, 8.8922,
                 ["Parking", "Air Conditioning", "Elevator", "Security", "Backup Power"],
-                "commercial", false, 2, 49),
+                "commercial", false, 1, 49),
         };
 
         var properties = new List<Property>();
@@ -511,9 +499,6 @@ public static class DevelopmentSeeder
         var clients = new[]
         {
             ("Bulus", "Tersoo", "bulus.tersoo@example.com", "+234 803 555 0147"),
-            ("Nanfear", "Doris", "nanfear.doris@example.com", "+234 805 555 0182"),
-            ("Ishaya", "Rita", "ishaya.rita@example.com", "+234 806 555 0119"),
-            ("Monday", "Emmanuel", "monday.emmanuel@example.com", "+234 807 555 0163"),
         };
 
         var clientUsers = new Dictionary<string, AppUser>(StringComparer.OrdinalIgnoreCase);
@@ -556,15 +541,8 @@ public static class DevelopmentSeeder
         // Reviews. Ratings are spread so the directory average is not uniform.
         var reviewPlan = new (int AgentIndex, int ReviewerIndex, int Rating, string Comment)[]
         {
-            (0, 0, 5, "Nankin walked us through every document before we paid a naira. Signed in three weeks, no surprises."),
-            (0, 1, 4, "Very responsive and honest about the state of the building. Only reason it is not five stars is that inspection took a few days to schedule."),
-            (0, 2, 5, "Handled a contested title issue on our family land and saved us from a bad purchase. Genuinely expert."),
-            (1, 0, 4, "Grace found us a suitable office space within our budget. Follow-up after signing was prompt."),
-            (1, 3, 5, "Professional and patient while explaining the lease terms to a first-time commercial tenant."),
-            (2, 1, 3, "Helpful over the phone, but the site visit was rescheduled twice before it happened."),
-            (3, 2, 5, "Aisha made the viewing easy for tenants who could only come at weekends. Excellent communication."),
-            (4, 0, 5, "Showed us four estates in one day and was transparent about which roads were still unmetered."),
-            (5, 3, 4, "Maryam explained the purchase steps in plain language. No pressure to decide quickly."),
+            (0, 0, 5, "Daniel walked us through every document before we paid a naira. Signed in three weeks, no surprises."),
+            (1, 0, 4, "Stephen found us a suitable property within our budget. Follow-up after signing was prompt."),
         };
 
         foreach (var (agentIndex, reviewerIndex, rating, comment) in reviewPlan)
@@ -603,23 +581,13 @@ public static class DevelopmentSeeder
         // something to show.
         var reportPlan = new (int AgentIndex, int ReporterIndex, AgentReportReason Reason, string Description, AgentReportStatus Status, string? Resolution)[]
         {
-            (2, 0, AgentReportReason.FalseListing,
+            (0, 0, AgentReportReason.FalseListing,
                 "The plot in Rayfield was advertised as having a signed survey and a perimeter wall. On inspection the wall was unfinished and I was shown a different document when I asked to see the original.",
                 AgentReportStatus.Open, null),
-            (3, 1, AgentReportReason.UnprofessionalConduct,
+            (1, 0, AgentReportReason.UnprofessionalConduct,
                 "An agent on this account told me a property had been sold before I could book a viewing, which was not true. I lost the rental I had arranged.",
-                AgentReportStatus.UnderReview, null),
-            (0, 2, AgentReportReason.Harassment,
-                "Received repeated messages early in the morning and at night about a viewing that had already been cancelled. I had to ask a friend to respond for me.",
                 AgentReportStatus.Resolved,
                 "Spoke with the agent and issued a written warning about contact hours. No further contact after the report was filed."),
-            (4, 3, AgentReportReason.PropertyNotAsAdvertised,
-                "The listing said the generator was included with the property. It was not, and the agent repeated that it was included after I asked twice.",
-                AgentReportStatus.Dismissed,
-                "Reviewed the listing copy and the message history. The generator was advertised as available separately, which the agent confirmed was a listing error. Corrected with the client and no further action required."),
-            (1, 0, AgentReportReason.Other,
-                "Requesting clarification on a commercial plot I enquired about last month. Not urgent, mainly to check the process.",
-                AgentReportStatus.Open, null),
         };
 
         foreach (var (agentIndex, reporterIndex, reason, description, status, resolution) in reportPlan)

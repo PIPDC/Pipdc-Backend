@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using PIPDC.Application.Auth;
 using PIPDC.Application.Common;
 using PIPDC.Application.Data;
+using PIPDC.Application.Email;
 using PIPDC.Application.Transactions;
 using PIPDC.Domain.Common;
 using PIPDC.Domain.Entities;
@@ -14,8 +16,13 @@ namespace PIPDC.Application.Transactions;
 public class TransactionService(
     IAppDbContext dbContext,
     IUniqueViolationDetector uniqueViolations,
+    IEmailQueue emailQueue,
+    IOptions<GmailApiSettings> gmailOptions,
     ILogger<TransactionService> logger) : ITransactionService
 {
+    /// <summary>A tenancy inside this many days of expiry is "about to be due".</summary>
+    private const int ReminderWindowDays = 30;
+
     // =========================
     // Recording
     // =========================
@@ -58,7 +65,8 @@ public class TransactionService(
                 SalePrice = request.SalePrice,
                 SaleDate = request.SaleDate.Date,
                 BuyerName = request.BuyerName.Trim(),
-                BuyerContact = request.BuyerContact.Trim(),
+                BuyerEmail = request.BuyerEmail.Trim(),
+                BuyerPhone = request.BuyerPhone.Trim(),
                 Notes = request.Notes?.Trim(),
                 Status = status,
                 EnquiryId = request.EnquiryId,
@@ -83,6 +91,16 @@ public class TransactionService(
                 return Result<TransactionDto>.Failure(saved.Error);
 
             logger.LogInformation("Sale recorded for property {PropertyId} by {UserId} at {Amount}.", propertyId, currentUserId, request.SalePrice);
+
+            // The buyer trusts us with their home purchase, so a thank-you goes out
+            // once the sale is committed. Queuing is best-effort and never fails the
+            // recorded sale; the [Idempotent] filter stops a retry re-sending it.
+            var thankYou = EmailTemplates.PurchaseThankYou(
+                request.BuyerEmail.Trim(),
+                request.BuyerName.Trim(),
+                property.Title,
+                gmailOptions.Value.FrontendBaseUrl);
+            emailQueue.QueueEmail(logger, thankYou, "sale-thank-you");
 
             return Result<TransactionDto>.Success(await LoadSaleAsync(sale.Id, ct));
         }
@@ -129,7 +147,8 @@ public class TransactionService(
             {
                 PropertyId = propertyId,
                 TenantName = request.TenantName.Trim(),
-                TenantContact = request.TenantContact.Trim(),
+                TenantEmail = request.TenantEmail.Trim(),
+                TenantPhone = request.TenantPhone.Trim(),
                 MonthlyRent = request.MonthlyRent,
                 LeaseStartDate = request.LeaseStartDate.Date,
                 LeaseEndDate = request.LeaseEndDate.Date,
@@ -520,6 +539,137 @@ public class TransactionService(
     }
 
     // =========================
+    // Tenant & purchaser rosters
+    // =========================
+
+    public async Task<Result<IReadOnlyList<TenantInfoDto>>> GetTenantsAsync(
+        string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
+    {
+        if (!currentUserRoles.Contains(Roles.Admin))
+            return Result<IReadOnlyList<TenantInfoDto>>.Failure(
+                Error.Forbidden("transaction.forbidden", "Only administrators can view tenant information."));
+
+        var today = DateTime.UtcNow.Date;
+
+        var tenants = await dbContext.LeaseRecords.AsNoTracking()
+            .Where(l => l.Status == TransactionStatus.Pending || l.Status == TransactionStatus.Active)
+            .OrderBy(l => l.LeaseEndDate)
+            .Select(l => new TenantInfoDto
+            {
+                LeaseId = l.Id,
+                TenantName = l.TenantName,
+                TenantEmail = l.TenantEmail,
+                TenantPhone = l.TenantPhone,
+                TenantUserId = l.TenantUserId,
+                PropertyId = l.PropertyId,
+                PropertyTitle = l.Property.Title,
+                PropertySlug = l.Property.Slug,
+                PropertyCity = l.Property.City,
+                PropertyState = l.Property.State,
+                Currency = l.Property.Currency,
+                MonthlyRent = l.MonthlyRent,
+                LeaseStartDate = l.LeaseStartDate,
+                LeaseEndDate = l.LeaseEndDate,
+                Status = l.Status,
+                StatusLabel = l.Status.ToString(),
+                ReminderSentAt = l.RentReminderSentAt
+            })
+            .ToListAsync(ct);
+
+        foreach (var tenant in tenants)
+        {
+            tenant.DaysRemaining = (tenant.LeaseEndDate.Date - today).Days;
+            tenant.ReminderDue = tenant.DaysRemaining <= ReminderWindowDays;
+        }
+
+        return Result<IReadOnlyList<TenantInfoDto>>.Success(tenants);
+    }
+
+    public async Task<Result<IReadOnlyList<PurchaserInfoDto>>> GetPurchasersAsync(
+        string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
+    {
+        if (!currentUserRoles.Contains(Roles.Admin))
+            return Result<IReadOnlyList<PurchaserInfoDto>>.Failure(
+                Error.Forbidden("transaction.forbidden", "Only administrators can view purchaser information."));
+
+        var purchasers = await dbContext.SaleRecords.AsNoTracking()
+            .OrderByDescending(s => s.SaleDate)
+            .Select(s => new PurchaserInfoDto
+            {
+                SaleId = s.Id,
+                BuyerName = s.BuyerName,
+                BuyerEmail = s.BuyerEmail,
+                BuyerPhone = s.BuyerPhone,
+                BuyerUserId = s.BuyerUserId,
+                PropertyId = s.PropertyId,
+                PropertyTitle = s.Property.Title,
+                PropertySlug = s.Property.Slug,
+                PropertyCity = s.Property.City,
+                PropertyState = s.Property.State,
+                Currency = s.Property.Currency,
+                SalePrice = s.SalePrice,
+                SaleDate = s.SaleDate,
+                Status = s.Status,
+                StatusLabel = s.Status.ToString()
+            })
+            .ToListAsync(ct);
+
+        return Result<IReadOnlyList<PurchaserInfoDto>>.Success(purchasers);
+    }
+
+    public async Task<Result<NotifyTenantResultDto>> NotifyTenantAsync(
+        int leaseId, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
+    {
+        if (!currentUserRoles.Contains(Roles.Admin))
+            return Result<NotifyTenantResultDto>.Failure(
+                Error.Forbidden("transaction.forbidden", "Only administrators can notify tenants."));
+
+        var lease = await dbContext.LeaseRecords
+            .Include(l => l.Property)
+            .FirstOrDefaultAsync(l => l.Id == leaseId, ct);
+
+        if (lease is null)
+            return Result<NotifyTenantResultDto>.Failure(
+                Error.NotFound("transaction.leasenotfound", $"No tenancy with id {leaseId} was found."));
+
+        if (lease.Status is not (TransactionStatus.Pending or TransactionStatus.Active))
+            return Result<NotifyTenantResultDto>.Failure(
+                Error.Conflict("transaction.leasenotactive", "This tenancy is no longer active, so its tenant cannot be reminded."));
+
+        if (string.IsNullOrWhiteSpace(lease.TenantEmail))
+            return Result<NotifyTenantResultDto>.Failure(
+                Error.Validation("transaction.tenantnoemail", "This tenancy has no tenant email address on record."));
+
+        var daysRemaining = (lease.LeaseEndDate.Date - DateTime.UtcNow.Date).Days;
+
+        var notice = EmailTemplates.RentExpiryNotice(
+            lease.TenantEmail,
+            lease.TenantName,
+            lease.Property?.Title ?? "your rented property",
+            lease.LeaseEndDate,
+            daysRemaining,
+            gmailOptions.Value.FrontendBaseUrl);
+        emailQueue.QueueEmail(logger, notice, "rent-expiry-notice");
+
+        // Stamping the reminder here as well as in the worker means an admin who
+        // notifies manually does not get a second, automatic one the next scan.
+        lease.RentReminderSentAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(ct);
+
+        logger.LogInformation(
+            "Rent-expiry reminder sent for tenancy {LeaseId} to {Email} ({Days} days remaining) by {UserId}.",
+            leaseId, lease.TenantEmail, daysRemaining, currentUserId);
+
+        return Result<NotifyTenantResultDto>.Success(new NotifyTenantResultDto
+        {
+            LeaseId = lease.Id,
+            TenantName = lease.TenantName,
+            TenantEmail = lease.TenantEmail,
+            DaysRemaining = daysRemaining
+        });
+    }
+
+    // =========================
     // Validation
     // =========================
 
@@ -538,8 +688,11 @@ public class TransactionService(
         if (string.IsNullOrWhiteSpace(request.BuyerName))
             return Result.Failure(Error.Validation("transaction.missingbuyername", "The buyer's name is required."));
 
-        if (string.IsNullOrWhiteSpace(request.BuyerContact))
-            return Result.Failure(Error.Validation("transaction.missingbuyercontact", "The buyer's contact is required."));
+        if (string.IsNullOrWhiteSpace(request.BuyerEmail) || !LooksLikeEmail(request.BuyerEmail))
+            return Result.Failure(Error.Validation("transaction.invalidbuyeremail", "A valid buyer email address is required."));
+
+        if (string.IsNullOrWhiteSpace(request.BuyerPhone))
+            return Result.Failure(Error.Validation("transaction.missingbuyerphone", "The buyer's phone number is required."));
 
         if (!TryResolveStatus(request.Status, TransactionStatus.Completed, out var status))
             return Result.Failure(Error.Validation("transaction.invalidstatus", $"'{request.Status}' is not a valid transaction status."));
@@ -558,8 +711,11 @@ public class TransactionService(
         if (string.IsNullOrWhiteSpace(request.TenantName))
             return Result.Failure(Error.Validation("transaction.missingtenantname", "The tenant's name is required."));
 
-        if (string.IsNullOrWhiteSpace(request.TenantContact))
-            return Result.Failure(Error.Validation("transaction.missingtenantcontact", "The tenant's contact is required."));
+        if (string.IsNullOrWhiteSpace(request.TenantEmail) || !LooksLikeEmail(request.TenantEmail))
+            return Result.Failure(Error.Validation("transaction.invalidtenantemail", "A valid tenant email address is required."));
+
+        if (string.IsNullOrWhiteSpace(request.TenantPhone))
+            return Result.Failure(Error.Validation("transaction.missingtenantphone", "The tenant's phone number is required."));
 
         if (request.MonthlyRent <= 0)
             return Result.Failure(Error.Validation("transaction.invalidrent", "The monthly rent must be greater than zero."));
@@ -751,7 +907,8 @@ public class TransactionService(
             SalePrice = s.SalePrice,
             SaleDate = s.SaleDate,
             BuyerName = s.BuyerName,
-            BuyerContact = s.BuyerContact,
+            BuyerEmail = s.BuyerEmail,
+            BuyerPhone = s.BuyerPhone,
             CounterpartyUserId = s.BuyerUserId,
             RecordedByUserId = s.RecordedByUserId,
             RecordedByName = s.RecordedByUser == null ? string.Empty : s.RecordedByUser.FullName,
@@ -779,7 +936,8 @@ public class TransactionService(
             LeaseStartDate = l.LeaseStartDate,
             LeaseEndDate = l.LeaseEndDate,
             TenantName = l.TenantName,
-            TenantContact = l.TenantContact,
+            TenantEmail = l.TenantEmail,
+            TenantPhone = l.TenantPhone,
             CounterpartyUserId = l.TenantUserId,
             RecordedByUserId = l.RecordedByUserId,
             RecordedByName = l.RecordedByUser == null ? string.Empty : l.RecordedByUser.FullName,
@@ -875,5 +1033,22 @@ public class TransactionService(
 
         date = parsed.Date;
         return true;
+    }
+
+    /// <summary>
+    /// Deliberately permissive, matching the enquiry validators: it rejects the
+    /// obvious typos (no @, no dot, embedded spaces) without pretending to be a
+    /// full RFC 5322 check. The address is a contact detail, not a login.
+    /// </summary>
+    private static bool LooksLikeEmail(string value)
+    {
+        var trimmed = value.Trim();
+        var at = trimmed.IndexOf('@');
+        return at > 0
+               && at == trimmed.LastIndexOf('@')
+               && at < trimmed.Length - 3
+               && trimmed.IndexOf('.', at) > at + 1
+               && !trimmed.Contains(' ')
+               && !trimmed.EndsWith('.');
     }
 }

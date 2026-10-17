@@ -1214,6 +1214,101 @@ public static class EmailTemplates
         };
     }
 
+    // ── 30. Sale recorded → Buyer (thank you) ────────────────────────────
+
+    /// <summary>
+    /// Sent to a buyer once their purchase is recorded, thanking them for
+    /// trusting and patronising PIPDC. The sale is already committed before this
+    /// is queued, so a mail failure never reopens the deal.
+    /// </summary>
+    public static EmailMessage PurchaseThankYou(
+        string buyerEmail,
+        string buyerName,
+        string propertyTitle,
+        string baseUrl)
+    {
+        var subject = $"Thank you for choosing {BrandName}";
+        var html = $"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+          <h2 style="color:#1a5276">Thank you for your trust</h2>
+          <p>Dear <strong>{Esc(buyerName)}</strong>,</p>
+          <p>We are delighted to confirm your purchase of <strong>{Esc(propertyTitle)}</strong> through {BrandName}.</p>
+          <p>Thank you for trusting and patronising us. It is a privilege to have helped you find a property, and we are committed to supporting you well after the paperwork is signed.</p>
+          <a href="{baseUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">Visit {BrandName}</a>
+          <p style="font-size:12px;color:#888;margin-top:24px">This is an automated message from {BrandName}.</p>
+        </div>
+        """;
+
+        var text = $"""
+        Thank you for your trust
+
+        Dear {buyerName},
+
+        We are delighted to confirm your purchase of {propertyTitle} through {BrandName}.
+
+        Thank you for trusting and patronising us.
+
+        ---
+        This is an automated message from {BrandName}.
+        """;
+
+        return new EmailMessage(buyerEmail, subject, html, buyerName, text)
+        {
+            IncludeUnsubscribe = false
+        };
+    }
+
+    // ── 31. Rent about to expire → Tenant ────────────────────────────────
+
+    /// <summary>
+    /// Reminds a tenant that their rent/lease is approaching its end. Sent
+    /// automatically a month before expiry and on demand from the admin tenant
+    /// page; the reminder timestamp on the tenancy prevents duplicates.
+    /// </summary>
+    public static EmailMessage RentExpiryNotice(
+        string tenantEmail,
+        string tenantName,
+        string propertyTitle,
+        DateTime leaseEndDate,
+        int daysRemaining,
+        string baseUrl)
+    {
+        var endDate = leaseEndDate.ToString("dd MMMM yyyy");
+        var remaining = daysRemaining switch
+        {
+            < 0 => "has already elapsed",
+            0 => "expires today",
+            _ => $"expires in {daysRemaining} day{(daysRemaining == 1 ? string.Empty : "s")}"
+        };
+        var subject = $"Your tenancy at {propertyTitle} {remaining}";
+        var html = $"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+          <h2 style="color:#1a5276">Tenancy Expiry Reminder</h2>
+          <p>Dear <strong>{Esc(tenantName)}</strong>,</p>
+          <p>This is a reminder that your tenancy at <strong>{Esc(propertyTitle)}</strong> {Esc(remaining)} (end date: <strong>{endDate}</strong>).</p>
+          <p>Please contact us if you intend to renew or if there is anything we should know before the term ends.</p>
+          <a href="{baseUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">Contact {BrandName}</a>
+          <p style="font-size:12px;color:#888;margin-top:24px">This is an automated message from {BrandName}.</p>
+        </div>
+        """;
+
+        var text = $"""
+        Tenancy Expiry Reminder
+
+        Dear {tenantName},
+
+        This is a reminder that your tenancy at {propertyTitle} {remaining} (end date: {endDate}).
+
+        ---
+        This is an automated message from {BrandName}.
+        """;
+
+        return new EmailMessage(tenantEmail, subject, html, tenantName, text)
+        {
+            IncludeUnsubscribe = false
+        };
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string Esc(string value) =>
