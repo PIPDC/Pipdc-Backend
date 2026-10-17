@@ -68,3 +68,12 @@ public class NotifyTenantResultDto
     public string TenantEmail { get; set; } = string.Empty;
     public int DaysRemaining { get; set; }
 }
+
+/// <summary>
+/// Body of a lease renewal. The tenant stays in the property; only the term is
+/// pushed out, so the new end date must be later than the current one.
+/// </summary>
+public class RenewLeaseRequest
+{
+    public DateTime NewEndDate { get; set; }
+}

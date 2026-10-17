@@ -39,4 +39,20 @@ public interface ITransactionService
     /// </summary>
     Task<Result<NotifyTenantResultDto>> NotifyTenantAsync(
         int leaseId, string currentUserId, IList<string> currentUserRoles, CancellationToken ct);
+
+    /// <summary>
+    /// Admin-only. Pushes a live tenancy's end date out and clears the rent
+    /// reminder so the tenant is notified again at the new term's end. The
+    /// property stays rented.
+    /// </summary>
+    Task<Result<TenantInfoDto>> RenewLeaseAsync(
+        int leaseId, DateTime newEndDate, string currentUserId, IList<string> currentUserRoles, CancellationToken ct);
+
+    /// <summary>
+    /// Admin-only. Marks a tenancy terminated because the tenant has left and, if
+    /// the property was rented, returns it to the market. This is the only path
+    /// that frees a rented property for a new listing.
+    /// </summary>
+    Task<Result<TenantInfoDto>> EndLeaseAsync(
+        int leaseId, string currentUserId, IList<string> currentUserRoles, CancellationToken ct);
 }

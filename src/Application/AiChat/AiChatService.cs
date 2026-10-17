@@ -517,7 +517,7 @@ public class AiChatService(
     {
         // The concierge answers from the public catalogue, so it must not surface
         // properties owned by a suspended agent.
-        var result = await propertyService.GetAllAsync(query, null, includeSuspendedAgents: false, ct);
+        var result = await propertyService.GetAllAsync(query, null, includeSuspendedAgents: false, includeSold: false, ct);
         return result.IsSuccess ? result.Value.Items : new List<PropertyDto>();
     }
 
