@@ -8,7 +8,8 @@ public class SaleRecord : AuditableEntity
     public decimal SalePrice { get; set; }
     public DateTime SaleDate { get; set; }
     public string BuyerName { get; set; } = string.Empty;
-    public string BuyerContact { get; set; } = string.Empty;
+    public string BuyerEmail { get; set; } = string.Empty;
+    public string BuyerPhone { get; set; } = string.Empty;
     public string? Notes { get; set; }
 
     /// <summary>
@@ -30,8 +31,9 @@ public class SaleRecord : AuditableEntity
 
     /// <summary>
     /// The user account of the buyer, when the sale came from a registered client.
-    /// Distinct from <see cref="BuyerContact"/>, which is a free-text name and
-    /// contact supplied at the time of signing and is always populated.
+    /// Distinct from <see cref="BuyerEmail"/> and <see cref="BuyerPhone"/>, which
+    /// are the free-text contact details supplied at the time of signing and are
+    /// always populated.
     /// </summary>
     public string? BuyerUserId { get; set; }
 

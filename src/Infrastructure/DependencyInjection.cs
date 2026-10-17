@@ -135,6 +135,10 @@ public static class DependencyInjection
         services.AddSingleton<IEmailQueue>(sp => sp.GetRequiredService<EmailQueue>());
         services.AddHostedService<EmailQueueWorker>();
 
+        // Periodically reminds tenants whose lease is within a month of ending,
+        // stamping each tenancy so the reminder is sent exactly once.
+        services.AddHostedService<RentReminderWorker>();
+
         services.AddRateLimiting();
 
         // Idempotency and Turnstile markers are Application-layer metadata; the

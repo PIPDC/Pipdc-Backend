@@ -12,7 +12,8 @@ public class RecordSaleRequest
     public decimal SalePrice { get; set; }
     public DateTime SaleDate { get; set; }
     public string BuyerName { get; set; } = string.Empty;
-    public string BuyerContact { get; set; } = string.Empty;
+    public string BuyerEmail { get; set; } = string.Empty;
+    public string BuyerPhone { get; set; } = string.Empty;
     public string? Notes { get; set; }
 
     /// <summary>Defaults to Completed, which is what "we sold it" means.</summary>
@@ -29,7 +30,8 @@ public class RecordSaleRequest
 public class RecordLeaseRequest
 {
     public string TenantName { get; set; } = string.Empty;
-    public string TenantContact { get; set; } = string.Empty;
+    public string TenantEmail { get; set; } = string.Empty;
+    public string TenantPhone { get; set; } = string.Empty;
     public decimal MonthlyRent { get; set; }
     public DateTime LeaseStartDate { get; set; }
     public DateTime LeaseEndDate { get; set; }
