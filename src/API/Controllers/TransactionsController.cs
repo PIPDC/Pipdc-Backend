@@ -100,6 +100,29 @@ public class TransactionsController(ITransactionService transactionService) : Co
     }
 
     /// <summary>
+    /// The signed-in client's own tenancies. Any authenticated user may call it;
+    /// the service returns only records where they are the tenant, so a client can
+    /// track what they rent without seeing anyone else's lease.
+    /// </summary>
+    [HttpGet("my/tenancies")]
+    public async Task<IActionResult> GetMyTenancies(CancellationToken ct)
+    {
+        var result = await transactionService.GetMyTenanciesAsync(CurrentUserId, ct);
+        return result.ToActionResult();
+    }
+
+    /// <summary>
+    /// The signed-in client's own purchases. See <see cref="GetMyTenancies"/> for
+    /// why this is not role-restricted.
+    /// </summary>
+    [HttpGet("my/purchases")]
+    public async Task<IActionResult> GetMyPurchases(CancellationToken ct)
+    {
+        var result = await transactionService.GetMyPurchasesAsync(CurrentUserId, ct);
+        return result.ToActionResult();
+    }
+
+    /// <summary>
     /// Emails the tenant the time left on their lease. Admins may notify any lease;
     /// an agent only a lease on a property they handle. [Idempotent] so a
     /// double-click replays the first response instead of mailing twice.

@@ -34,6 +34,20 @@ public interface ITransactionService
         string currentUserId, IList<string> currentUserRoles, CancellationToken ct);
 
     /// <summary>
+    /// The signed-in client's own tenancies, newest first. Scoped by the caller's
+    /// user id rather than a role, so a client can track what they rent.
+    /// </summary>
+    Task<Result<IReadOnlyList<TenantInfoDto>>> GetMyTenanciesAsync(
+        string currentUserId, CancellationToken ct);
+
+    /// <summary>
+    /// The signed-in client's own purchases, newest first. Scoped by the caller's
+    /// user id rather than a role, so a client can track what they bought.
+    /// </summary>
+    Task<Result<IReadOnlyList<PurchaserInfoDto>>> GetMyPurchasesAsync(
+        string currentUserId, CancellationToken ct);
+
+    /// <summary>
     /// Admin-only. Emails a tenant the time left on their lease and stamps the
     /// reminder so the automatic worker will not immediately duplicate it.
     /// </summary>

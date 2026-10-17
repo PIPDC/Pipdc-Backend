@@ -817,6 +817,77 @@ public class TransactionService(
         return Result<IReadOnlyList<PurchaserInfoDto>>.Success(purchasers);
     }
 
+    public async Task<Result<IReadOnlyList<TenantInfoDto>>> GetMyTenanciesAsync(
+        string currentUserId, CancellationToken ct)
+    {
+        var today = DateTime.UtcNow.Date;
+
+        // Every tenancy the client is on, past and present, so the page doubles as
+        // a record of where they have rented rather than only where they live now.
+        var tenancies = await dbContext.LeaseRecords.AsNoTracking()
+            .Where(l => l.TenantUserId == currentUserId)
+            .OrderByDescending(l => l.LeaseStartDate)
+            .Select(l => new TenantInfoDto
+            {
+                LeaseId = l.Id,
+                TenantName = l.TenantName,
+                TenantEmail = l.TenantEmail,
+                TenantPhone = l.TenantPhone,
+                TenantUserId = l.TenantUserId,
+                PropertyId = l.PropertyId,
+                PropertyTitle = l.Property.Title,
+                PropertySlug = l.Property.Slug,
+                PropertyCity = l.Property.City,
+                PropertyState = l.Property.State,
+                Currency = l.Property.Currency,
+                MonthlyRent = l.MonthlyRent,
+                LeaseStartDate = l.LeaseStartDate,
+                LeaseEndDate = l.LeaseEndDate,
+                Status = l.Status,
+                StatusLabel = l.Status.ToString(),
+                ReminderSentAt = l.RentReminderSentAt
+            })
+            .ToListAsync(ct);
+
+        foreach (var tenant in tenancies)
+        {
+            tenant.DaysRemaining = (tenant.LeaseEndDate.Date - today).Days;
+            tenant.ReminderDue =
+                tenant.DaysRemaining <= LeaseReminderPolicy.WindowDays(tenant.LeaseStartDate, tenant.LeaseEndDate);
+        }
+
+        return Result<IReadOnlyList<TenantInfoDto>>.Success(tenancies);
+    }
+
+    public async Task<Result<IReadOnlyList<PurchaserInfoDto>>> GetMyPurchasesAsync(
+        string currentUserId, CancellationToken ct)
+    {
+        var purchases = await dbContext.SaleRecords.AsNoTracking()
+            .Where(s => s.BuyerUserId == currentUserId)
+            .OrderByDescending(s => s.SaleDate)
+            .Select(s => new PurchaserInfoDto
+            {
+                SaleId = s.Id,
+                BuyerName = s.BuyerName,
+                BuyerEmail = s.BuyerEmail,
+                BuyerPhone = s.BuyerPhone,
+                BuyerUserId = s.BuyerUserId,
+                PropertyId = s.PropertyId,
+                PropertyTitle = s.Property.Title,
+                PropertySlug = s.Property.Slug,
+                PropertyCity = s.Property.City,
+                PropertyState = s.Property.State,
+                Currency = s.Property.Currency,
+                SalePrice = s.SalePrice,
+                SaleDate = s.SaleDate,
+                Status = s.Status,
+                StatusLabel = s.Status.ToString()
+            })
+            .ToListAsync(ct);
+
+        return Result<IReadOnlyList<PurchaserInfoDto>>.Success(purchases);
+    }
+
     public async Task<Result<NotifyTenantResultDto>> NotifyTenantAsync(
         int leaseId, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
