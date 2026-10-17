@@ -95,4 +95,70 @@ public class ConversationService(IAppDbContext dbContext) : IConversationService
 
         return Result<ConversationDto>.Success(await ConversationProjections.SingleAsync(dbContext, id, currentUserId, ct));
     }
+
+    // Opens a conversation about a property without requiring an enquiry. The
+    // thread is identified by (client, agent, property), so calling this again
+    // returns the same conversation instead of stacking duplicates.
+    public async Task<Result<StartConversationResultDto>> StartAsync(StartConversationRequest request, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
+    {
+        var property = await dbContext.Properties
+            .VisibleProperties()
+            .Include(p => p.Agent)
+            .FirstOrDefaultAsync(p => p.Id == request.PropertyId, ct);
+
+        if (property is null)
+            return Result<StartConversationResultDto>.Failure(
+                Error.NotFound("conversation.propertynotfound", $"Property with id {request.PropertyId} was not found."));
+
+        if (property.AgentId is null)
+            return Result<StartConversationResultDto>.Failure(
+                Error.Conflict("conversation.noagent", "This property has no assigned agent to message."));
+
+        // An agent cannot open a conversation with themselves; the client is the
+        // only party who starts a thread from a listing.
+        if (property.Agent is not null && property.Agent.UserId == currentUserId)
+            return Result<StartConversationResultDto>.Failure(
+                Error.Validation("conversation.selfmessage", "You cannot start a conversation with yourself."));
+
+        var agentId = property.AgentId.Value;
+
+        var existingId = await FindConversationIdAsync(currentUserId, agentId, property.Id, ct);
+        if (existingId != 0)
+            return Result<StartConversationResultDto>.Success(new StartConversationResultDto(existingId));
+
+        var now = DateTime.UtcNow;
+        var conversation = new Conversation
+        {
+            PropertyId = property.Id,
+            ClientUserId = currentUserId,
+            AgentId = agentId,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        dbContext.Conversations.Add(conversation);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent request inserted the same (client, agent, property)
+            // thread first and the unique index rejected ours; return the winner.
+            var winnerId = await FindConversationIdAsync(currentUserId, agentId, property.Id, ct);
+            if (winnerId == 0)
+                throw;
+
+            return Result<StartConversationResultDto>.Success(new StartConversationResultDto(winnerId));
+        }
+
+        return Result<StartConversationResultDto>.Success(new StartConversationResultDto(conversation.Id));
+    }
+
+    private Task<int> FindConversationIdAsync(string clientUserId, int agentId, int propertyId, CancellationToken ct) =>
+        dbContext.Conversations
+            .Where(c => c.ClientUserId == clientUserId && c.AgentId == agentId && c.PropertyId == propertyId)
+            .Select(c => c.Id)
+            .FirstOrDefaultAsync(ct);
 }

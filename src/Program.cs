@@ -149,6 +149,28 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
 var app = builder.Build();
 
+// Every notification email links back to the frontend, so a missing or relative
+// base URL would send each call to action to a broken link. Development only
+// warns (email delivery is not exercised locally); Production refuses to start,
+// which surfaces the misconfiguration at deploy time rather than in a user's
+// inbox.
+var frontendBaseUrl = app.Services.GetRequiredService<PIPDC.Application.Email.IFrontendUrlBuilder>().Base;
+var frontendBaseUrlIsValid =
+    frontendBaseUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+    || frontendBaseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+if (!frontendBaseUrlIsValid)
+{
+    const string message =
+        "Frontend:BaseUrl (or GmailApiSettings:FrontendBaseUrl) must be an absolute http(s) URL; "
+        + "links in notification emails would otherwise be broken.";
+
+    if (app.Environment.IsProduction())
+        throw new InvalidOperationException(message);
+
+    app.Logger.LogError("{Message}", message);
+}
+
 using var scope = app.Services.CreateScope();
 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 

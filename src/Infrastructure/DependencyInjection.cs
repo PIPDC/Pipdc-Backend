@@ -123,6 +123,12 @@ public static class DependencyInjection
 
         services.Configure<GmailApiSettings>(config.GetSection("GmailApiSettings"));
 
+        // The public frontend address, used to build every call to action in a
+        // notification email. Bound from "Frontend"; the builder falls back to
+        // GmailApiSettings:FrontendBaseUrl for deployments that predate it.
+        services.Configure<FrontendOptions>(config.GetSection(FrontendOptions.SectionName));
+        services.AddSingleton<IFrontendUrlBuilder, FrontendUrlBuilder>();
+
         // Non-secret email configuration (currently the public contact-form
         // recipient). Secrets stay in GmailApiSettings / user secrets.
         services.Configure<EmailSettings>(config.GetSection(EmailSettings.SectionName));

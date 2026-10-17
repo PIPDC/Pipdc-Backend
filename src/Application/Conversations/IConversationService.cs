@@ -10,4 +10,8 @@ public interface IConversationService
     Task<Result<PaginatedResult<ConversationDto>>> GetMineAsync(string currentUserId, IList<string> currentUserRoles, ConversationQueryParameters queryParams, CancellationToken ct);
 
     Task<Result<ConversationDto>> GetByIdAsync(int id, string currentUserId, IList<string> currentUserRoles, CancellationToken ct);
+
+    // Starts (or returns the existing) conversation between the current client
+    // and the property's agent. Idempotent on (client, agent, property).
+    Task<Result<StartConversationResultDto>> StartAsync(StartConversationRequest request, string currentUserId, IList<string> currentUserRoles, CancellationToken ct);
 }

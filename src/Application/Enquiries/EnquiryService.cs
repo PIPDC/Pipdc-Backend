@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using PIPDC.Application.Auth;
 using PIPDC.Application.Common;
 using PIPDC.Application.Data;
@@ -16,7 +15,7 @@ public class EnquiryService(
     IAppDbContext dbContext,
     UserManager<AppUser> userManager,
     IEmailQueue emailQueue,
-    IOptions<GmailApiSettings> smtpOptions,
+    IFrontendUrlBuilder frontendUrls,
     ILogger<EnquiryService> logger) : IEnquiryService
 {
     public async Task<Result<PaginatedResult<EnquiryDto>>> GetAllAsync(EnquiryQueryParameters q, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
@@ -181,10 +180,41 @@ public class EnquiryService(
                 .ThenInclude(a => a!.User)
             .FirstAsync(e => e.Id == enquiry.Id, ct);
 
+        // If the client already opened a conversation about this property from
+        // the listing page, attach it to this enquiry so the enquiry screen shows
+        // the existing thread rather than offering to start a new one. Only an
+        // unlinked thread is adopted; best-effort, since an unlinked conversation
+        // is still perfectly usable.
+        if (created.Property.AgentId is int agentId)
+        {
+            var conversation = await dbContext.Conversations.FirstOrDefaultAsync(
+                c => c.ClientUserId == currentUserId
+                     && c.AgentId == agentId
+                     && c.PropertyId == created.PropertyId
+                     && c.EnquiryId == null,
+                ct);
+
+            if (conversation is not null)
+            {
+                conversation.EnquiryId = created.Id;
+                conversation.UpdatedAt = DateTime.UtcNow;
+
+                try
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException)
+                {
+                    // Another request linked the same thread first; the enquiry
+                    // itself is already saved, so keep the link best-effort.
+                }
+            }
+        }
+
         // Queue an email to the assigned agent about the new enquiry (best-effort).
         if (created.Property.Agent?.User?.Email is { Length: > 0 } agentEmail)
         {
-            var baseUrl = smtpOptions.Value.FrontendBaseUrl;
+            var baseUrl = frontendUrls;
             emailQueue.QueueEmail(
                 logger,
                 EmailTemplates.NewEnquiryToAgent(
@@ -369,7 +399,7 @@ public class EnquiryService(
         // Queue a reminder email to the agent (best-effort).
         if (enquiry.Property.Agent?.User?.Email is { Length: > 0 } agentEmail)
         {
-            var baseUrl = smtpOptions.Value.FrontendBaseUrl;
+            var baseUrl = frontendUrls;
             emailQueue.QueueEmail(
                 logger,
                 EmailTemplates.AdminNotifyToAgent(
@@ -467,7 +497,7 @@ public class EnquiryService(
 
     private void QueueStatusChangeEmails(Enquiry enquiry, EnquiryStatus newStatus)
     {
-        var baseUrl = smtpOptions.Value.FrontendBaseUrl;
+        var baseUrl = frontendUrls;
         var clientEmail = enquiry.User?.Email ?? enquiry.Email;
         var clientName = enquiry.FullName;
         var agentEmail = enquiry.Property.Agent?.User?.Email;

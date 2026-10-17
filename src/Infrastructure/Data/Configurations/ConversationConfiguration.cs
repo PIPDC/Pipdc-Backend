@@ -13,8 +13,16 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
             .IsRequired()
             .HasMaxLength(450);
 
-        // One enquiry has at most one conversation. Enforced at the database level.
+        // A conversation no longer has to come from an enquiry, but when it is
+        // linked to one the link is unique: an enquiry maps to at most one
+        // conversation. Nullable, so a standalone conversation stores NULL and
+        // Postgres allows many NULLs under a unique index.
         builder.HasIndex(c => c.EnquiryId)
+            .IsUnique();
+
+        // One client, one agent, one property: the natural key that makes
+        // "start a conversation" idempotent and stops duplicate threads.
+        builder.HasIndex(c => new { c.ClientUserId, c.AgentId, c.PropertyId })
             .IsUnique();
 
         // Efficient lookup of a user's conversations and an agent's conversations.
@@ -22,10 +30,20 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
 
         builder.HasIndex(c => c.AgentId);
 
+        builder.HasIndex(c => c.PropertyId);
+
+        // Optional link: deleting an enquiry clears the link but keeps the
+        // conversation and its history.
         builder.HasOne(c => c.Enquiry)
             .WithOne(e => e.Conversation)
             .HasForeignKey<Conversation>(c => c.EnquiryId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(c => c.Property)
+            .WithMany()
+            .HasForeignKey(c => c.PropertyId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(c => c.Client)
             .WithMany(u => u.Conversations)

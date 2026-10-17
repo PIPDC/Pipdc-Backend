@@ -25,7 +25,7 @@ public record ConversationPropertyDto(
 
 public record ConversationDto(
     int Id,
-    int EnquiryId,
+    int? EnquiryId,
     ConversationClientDto Client,
     ConversationAgentDto Agent,
     ConversationPropertyDto Property,
@@ -69,6 +69,13 @@ public record EnquiryConversationStateDto(
     ConversationClientDto Client,
     ConversationAgentDto Agent,
     ConversationPropertyDto Property);
+
+/// <summary>Payload for opening (or reusing) a conversation about a property, with no enquiry required.</summary>
+public record StartConversationRequest(
+    [Range(1, int.MaxValue)] int PropertyId);
+
+public record StartConversationResultDto(
+    int ConversationId);
 
 public record FirstMessageResultDto(
     ConversationDto Conversation,

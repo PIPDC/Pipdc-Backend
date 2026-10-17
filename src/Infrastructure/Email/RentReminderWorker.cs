@@ -78,9 +78,7 @@ public sealed class RentReminderWorker(
             using var scope = scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
             var queue = scope.ServiceProvider.GetRequiredService<IEmailQueue>();
-            var settings = scope.ServiceProvider
-                .GetRequiredService<Microsoft.Extensions.Options.IOptions<GmailApiSettings>>()
-                .Value;
+            var frontendUrls = scope.ServiceProvider.GetRequiredService<IFrontendUrlBuilder>();
 
             var today = DateTime.UtcNow.Date;
             // Prefilter on the widest window the policy can choose; the exact window
@@ -117,7 +115,7 @@ public sealed class RentReminderWorker(
                     lease.Property?.Title ?? "your rented property",
                     lease.LeaseEndDate,
                     daysRemaining,
-                    settings.FrontendBaseUrl);
+                    frontendUrls);
 
                 queue.QueueEmail(logger, notice, "rent-expiry-notice");
                 lease.RentReminderSentAt = DateTime.UtcNow;

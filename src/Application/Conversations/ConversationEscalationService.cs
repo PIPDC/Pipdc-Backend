@@ -16,8 +16,8 @@ public class ConversationEscalationService(
     IAppDbContext dbContext,
     IMessageNotifier notifier,
     IEmailQueue emailQueue,
-    IOptions<GmailApiSettings> gmailOptions,
     IOptions<EmailSettings> emailOptions,
+    IFrontendUrlBuilder frontendUrls,
     ILogger<ConversationEscalationService> logger) : IConversationEscalationService
 {
     public async Task<Result<PaginatedResult<ConversationDto>>> GetEscalationsAsync(
@@ -198,7 +198,7 @@ public class ConversationEscalationService(
                     dto.Agent.FullName,
                     dto.Property.Title,
                     dto.EscalationReason ?? "No reason recorded.",
-                    gmailOptions.Value.FrontendBaseUrl),
+                    frontendUrls),
                 $"conversation-escalated:{dto.Id}",
                 ct);
         }
@@ -221,7 +221,7 @@ public class ConversationEscalationService(
             var message = status switch
             {
                 ConversationEscalationStatus.Escalated => EmailTemplates.ConversationEscalatedToClient(
-                    clientEmail, dto.Client.FullName, dto.Agent.FullName, dto.Property.Title, gmailOptions.Value.FrontendBaseUrl),
+                    clientEmail, dto.Client.FullName, dto.Agent.FullName, dto.Property.Title, frontendUrls),
                 ConversationEscalationStatus.Assigned => EmailTemplates.ConversationAssignedToAdmin(
                     clientEmail, dto.Client.FullName, dto.AssignedAdminName ?? "a PIPDC administrator", dto.Property.Title),
                 ConversationEscalationStatus.Resolved => EmailTemplates.ConversationEscalationResolved(

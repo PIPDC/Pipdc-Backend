@@ -5,7 +5,16 @@ namespace PIPDC.Domain.Entities;
 
 public class Conversation : AuditableEntity
 {
-    public int EnquiryId { get; set; }
+    // Optional link to the enquiry this conversation grew out of. Messaging is
+    // independent of enquiries, so a conversation can exist with no enquiry at
+    // all; the link is filled in when the client messages from an enquiry.
+    public int? EnquiryId { get; set; }
+
+    // The listing the conversation is about. Together with ClientUserId and
+    // AgentId this is the conversation's natural key: one client can hold at
+    // most one thread with a given agent about a given property.
+    public int PropertyId { get; set; }
+
     public string ClientUserId { get; set; } = string.Empty;
     public int AgentId { get; set; }
 
@@ -39,7 +48,8 @@ public class Conversation : AuditableEntity
     /// <summary>The administrator who closed the issue.</summary>
     public string? ResolvedByUserId { get; set; }
 
-    public Enquiry Enquiry { get; set; } = null!;
+    public Enquiry? Enquiry { get; set; }
+    public Property Property { get; set; } = null!;
     public AppUser Client { get; set; } = null!;
     public Agent Agent { get; set; } = null!;
     public ICollection<Message> Messages { get; set; } = [];

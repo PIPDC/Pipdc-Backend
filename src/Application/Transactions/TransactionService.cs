@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using PIPDC.Application.Auth;
 using PIPDC.Application.Common;
 using PIPDC.Application.Data;
@@ -17,7 +16,7 @@ public class TransactionService(
     IAppDbContext dbContext,
     IUniqueViolationDetector uniqueViolations,
     IEmailQueue emailQueue,
-    IOptions<GmailApiSettings> gmailOptions,
+    IFrontendUrlBuilder frontendUrls,
     ILogger<TransactionService> logger) : ITransactionService
 {
     // =========================
@@ -255,7 +254,7 @@ public class TransactionService(
                 request.BuyerEmail.Trim(),
                 request.BuyerName.Trim(),
                 property.Title,
-                gmailOptions.Value.FrontendBaseUrl);
+                frontendUrls);
             emailQueue.QueueEmail(logger, thankYou, "sale-thank-you");
 
             return Result<TransactionDto>.Success(await LoadSaleAsync(sale.Id, ct));
@@ -927,7 +926,7 @@ public class TransactionService(
             lease.Property?.Title ?? "your rented property",
             lease.LeaseEndDate,
             daysRemaining,
-            gmailOptions.Value.FrontendBaseUrl);
+            frontendUrls);
         emailQueue.QueueEmail(logger, notice, "rent-expiry-notice");
 
         // Stamping the reminder here as well as in the worker means an admin who

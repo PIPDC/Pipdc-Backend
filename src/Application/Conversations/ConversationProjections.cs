@@ -28,9 +28,9 @@ internal static class ConversationProjections
             c.Agent.User.LastName,
             c.Agent.AgencyName,
             c.Agent.PhotoUrl,
-            c.Enquiry.PropertyId,
-            c.Enquiry.Property.Title,
-            c.Enquiry.Property.Slug,
+            c.PropertyId,
+            c.Property.Title,
+            c.Property.Slug,
             c.LastMessageAt,
             c.Messages.Count(),
             c.Messages.Count(m => m.SenderUserId != currentUserId && m.ReadAt == null),
@@ -70,7 +70,7 @@ internal static class ConversationProjections
 
     internal sealed record ConversationProjection(
         int Id,
-        int EnquiryId,
+        int? EnquiryId,
         string ClientUserId,
         string ClientFirstName,
         string ClientLastName,
