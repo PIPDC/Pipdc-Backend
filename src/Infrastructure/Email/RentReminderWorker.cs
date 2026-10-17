@@ -4,13 +4,15 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PIPDC.Application.Data;
 using PIPDC.Application.Email;
+using PIPDC.Application.Transactions;
 using PIPDC.Domain.Enums;
 
 namespace PIPDC.Infrastructure.Email;
 
 /// <summary>
-/// Sends tenants a rent-expiry reminder automatically once their lease is within
-/// a month of ending.
+/// Sends tenants a rent-expiry reminder automatically once their lease is inside
+/// the notice window for its length (a week for a short let, a month for a longer
+/// one).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -30,8 +32,6 @@ public sealed class RentReminderWorker(
     IServiceScopeFactory scopeFactory,
     ILogger<RentReminderWorker> logger) : BackgroundService
 {
-    private const int ReminderWindowDays = 30;
-
     private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -83,9 +83,12 @@ public sealed class RentReminderWorker(
                 .Value;
 
             var today = DateTime.UtcNow.Date;
-            var windowEnd = today.AddDays(ReminderWindowDays);
+            // Prefilter on the widest window the policy can choose; the exact window
+            // is per-lease (short and long tenancies differ), so the final decision is
+            // made in memory below.
+            var windowEnd = today.AddDays(LeaseReminderPolicy.LongTermWindowDays);
 
-            var due = await db.LeaseRecords
+            var candidates = await db.LeaseRecords
                 .Include(l => l.Property)
                 .Where(l => l.RentReminderSentAt == null
                             && l.TenantEmail != string.Empty
@@ -94,12 +97,19 @@ public sealed class RentReminderWorker(
                             && l.LeaseEndDate <= windowEnd)
                 .ToListAsync(stoppingToken);
 
-            if (due.Count == 0)
+            if (candidates.Count == 0)
                 return;
 
-            foreach (var lease in due)
+            var queued = 0;
+
+            foreach (var lease in candidates)
             {
                 var daysRemaining = (lease.LeaseEndDate.Date - today).Days;
+
+                // A short let is reminded only a week out. A lease still further away
+                // than its own window is left unstamped and picked up on a later scan.
+                if (daysRemaining > LeaseReminderPolicy.WindowDays(lease.LeaseStartDate, lease.LeaseEndDate))
+                    continue;
 
                 var notice = EmailTemplates.RentExpiryNotice(
                     lease.TenantEmail,
@@ -111,11 +121,15 @@ public sealed class RentReminderWorker(
 
                 queue.QueueEmail(logger, notice, "rent-expiry-notice");
                 lease.RentReminderSentAt = DateTime.UtcNow;
+                queued++;
             }
+
+            if (queued == 0)
+                return;
 
             await db.SaveChangesAsync(stoppingToken);
 
-            logger.LogInformation("Queued {Count} rent-expiry reminder(s).", due.Count);
+            logger.LogInformation("Queued {Count} rent-expiry reminder(s).", queued);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
