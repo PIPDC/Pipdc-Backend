@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using PIPDC.Application.Data;
 using PIPDC.Application.Email;
 using PIPDC.Domain.Common;
@@ -12,7 +11,7 @@ public class MessageService(
     IAppDbContext dbContext,
     IMessageNotifier notifier,
     IEmailQueue emailQueue,
-    IOptions<GmailApiSettings> smtpOptions,
+    IFrontendUrlBuilder frontendUrls,
     ILogger<MessageService> logger) : IMessageService
 {
     public async Task<Result<MessageDto>> SendAsync(int conversationId, SendMessageRequest request, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
@@ -65,9 +64,12 @@ public class MessageService(
         return Result<MessageDto>.Success(dto);
     }
 
-    // Sends a message resolved from an Enquiry. If no Conversation exists for the enquiry yet,
-    // the Conversation, first Message, and LastMessageAt are created atomically in a single
-    // SaveChanges (one implicit database transaction). Opening the messaging UI never calls this.
+    // Sends a message resolved from an Enquiry. The conversation is found by
+    // (client, agent, property), so an enquiry reuses the thread the client may
+    // already have opened from the property page; if none exists one is created
+    // here. The Conversation, first Message, and LastMessageAt are created
+    // atomically in a single SaveChanges (one implicit database transaction).
+    // Opening the messaging UI never calls this.
     public async Task<Result<FirstMessageResultDto>> SendByEnquiryAsync(int enquiryId, SendMessageRequest request, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Content))
@@ -97,7 +99,15 @@ public class MessageService(
                 Error.Conflict("conversation.noagent", "This enquiry's property has no assigned agent, so a conversation cannot be created."));
 
         var content = request.Content.Trim();
-        var conversation = await dbContext.Conversations.FirstOrDefaultAsync(c => c.EnquiryId == enquiryId, ct);
+
+        // Conversations are identified by (client, agent, property) rather than by
+        // enquiry, so a thread the client already opened from the property page is
+        // reused here instead of a duplicate being created. Sending from the
+        // enquiry screen also links that enquiry to the existing thread.
+        var conversation = await dbContext.Conversations.FirstOrDefaultAsync(
+            c => c.ClientUserId == enquiry.UserId
+                 && c.AgentId == enquiry.Property.AgentId!.Value
+                 && c.PropertyId == enquiry.PropertyId, ct);
 
         // A conversation that already exists carries escalation state, so the same
         // ownership rule applies whether the client replies from the enquiry screen
@@ -108,6 +118,9 @@ public class MessageService(
             var sendAllowed = await ConversationAuthorization.AuthorizeSendAsync(dbContext, conversation, currentUserId, currentUserRoles, ct);
             if (sendAllowed.IsFailure)
                 return Result<FirstMessageResultDto>.Failure(sendAllowed.Error);
+
+            if (conversation.EnquiryId is null)
+                conversation.EnquiryId = enquiryId;
         }
 
         Message message;
@@ -119,6 +132,7 @@ public class MessageService(
             conversation = new Conversation
             {
                 EnquiryId = enquiryId,
+                PropertyId = enquiry.PropertyId,
                 ClientUserId = enquiry.UserId,
                 AgentId = enquiry.Property.AgentId!.Value,
                 CreatedAt = now,
@@ -159,19 +173,26 @@ public class MessageService(
         }
         catch (DbUpdateException)
         {
-            // A concurrent first-message request created the conversation first. The unique
-            // index on Conversation.EnquiryId guarantees exactly one conversation wins; the
-            // failed SaveChanges (and its implicit transaction) rolled back, so discard the
-            // local pending entities and re-send the message into the winning conversation.
+            // A concurrent first-message request created the same
+            // (client, agent, property) conversation first. The unique index
+            // guarantees exactly one conversation wins; the failed SaveChanges
+            // (and its implicit transaction) rolled back, so discard the local
+            // pending entities and re-send the message into the winning conversation.
             if (!attemptedCreate)
                 throw;
 
             dbContext.Messages.Local.Remove(message);
             dbContext.Conversations.Local.Remove(conversation);
 
-            conversation = await dbContext.Conversations.FirstOrDefaultAsync(c => c.EnquiryId == enquiryId, ct);
+            conversation = await dbContext.Conversations.FirstOrDefaultAsync(
+                c => c.ClientUserId == enquiry.UserId
+                     && c.AgentId == enquiry.Property.AgentId!.Value
+                     && c.PropertyId == enquiry.PropertyId, ct);
             if (conversation is null)
                 throw;
+
+            if (conversation.EnquiryId is null)
+                conversation.EnquiryId = enquiryId;
 
             var now = DateTime.UtcNow;
             message = new Message
@@ -230,26 +251,29 @@ public class MessageService(
     {
         try
         {
-            var enquiry = await dbContext.Enquiries
-                .Include(e => e.Property)
-                    .ThenInclude(p => p.Agent)
+            // The property the conversation is about (no longer only reachable via
+            // an enquiry), its managing agent, and the registered client.
+            var property = await dbContext.Properties
+                .Include(p => p.Agent)
                     .ThenInclude(a => a!.User)
-                .FirstOrDefaultAsync(e => e.Id == conversation.EnquiryId, ct);
+                .FirstOrDefaultAsync(p => p.Id == conversation.PropertyId, ct);
 
-            if (enquiry?.Property.Agent?.User is null)
+            if (property?.Agent?.User is null)
                 return;
 
-            var baseUrl = smtpOptions.Value.FrontendBaseUrl;
-            var propertyTitle = enquiry.Property.Title;
-            var enquiryId = enquiry.Id;
+            var client = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == conversation.ClientUserId, ct);
+
+            var baseUrl = frontendUrls;
+            var propertyTitle = property.Title;
             var preview = messageContent.Length > 120 ? messageContent[..120] + "…" : messageContent;
+            var clientName = client?.FullName ?? string.Empty;
 
             bool senderIsClient = senderUserId == conversation.ClientUserId;
 
             if (senderIsClient)
             {
                 // Client sent → email agent
-                var agentEmail = enquiry.Property.Agent.User.Email;
+                var agentEmail = property.Agent.User.Email;
                 if (string.IsNullOrWhiteSpace(agentEmail))
                     return;
 
@@ -257,19 +281,19 @@ public class MessageService(
                     logger,
                     EmailTemplates.ClientReplyToAgent(
                         agentEmail,
-                        enquiry.Property.Agent.User.FullName,
-                        enquiry.FullName,
+                        property.Agent.User.FullName,
+                        clientName,
                         preview,
                         propertyTitle,
-                        enquiryId,
+                        conversation.EnquiryId,
                         baseUrl),
                     $"client-reply:{conversation.Id}",
                     ct);
             }
             else
             {
-                // Agent sent → email client
-                var clientEmail = enquiry.User?.Email ?? enquiry.Email;
+                // Agent (or the owning administrator) sent → email client
+                var clientEmail = client?.Email;
                 if (string.IsNullOrWhiteSpace(clientEmail))
                     return;
 
@@ -277,11 +301,11 @@ public class MessageService(
                     logger,
                     EmailTemplates.AgentReplyToClient(
                         clientEmail,
-                        enquiry.FullName,
-                        enquiry.Property.Agent.User.FullName,
+                        clientName,
+                        property.Agent.User.FullName,
                         preview,
                         propertyTitle,
-                        enquiryId,
+                        conversation.EnquiryId,
                         baseUrl),
                     $"agent-reply:{conversation.Id}",
                     ct);

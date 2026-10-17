@@ -23,7 +23,7 @@ public class AuthService(
     IOptions<JwtSettings> jwtOptions,
     IEmailService emailService,
     IEmailQueue emailQueue,
-    IOptions<GmailApiSettings> gmailOptions,
+    IFrontendUrlBuilder frontendUrls,
     IHostEnvironment hostEnvironment,
     ILogger<AuthService> logger) : IAuthService
 {
@@ -250,7 +250,7 @@ public class AuthService(
         emailQueue.QueueEmail(
             logger,
             EmailTemplates.PasswordChangedNotification(user.Email!, user.FullName,
-                gmailOptions.Value.FrontendBaseUrl),
+                frontendUrls),
             "password-changed");
 
         return Result.Success();
@@ -516,7 +516,7 @@ public class AuthService(
         await InvalidateActiveCodesAsync(user.Id, purpose, ct);
         await dbContext.SaveChangesAsync(ct);
 
-        var baseUrl = gmailOptions.Value.FrontendBaseUrl;
+        var baseUrl = frontendUrls;
         var message = purpose == VerificationPurpose.EmailConfirmation
             ? EmailTemplates.EmailVerification(user.Email!, user.FullName, code,
                 (int)CodeLifetime.TotalMinutes, baseUrl)

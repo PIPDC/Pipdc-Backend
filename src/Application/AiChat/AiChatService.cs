@@ -16,8 +16,8 @@ public class AiChatService(
     IGeminiClient geminiClient,
     IPropertyService propertyService,
     IEmailQueue emailQueue,
-    IOptions<GmailApiSettings> gmailOptions,
     IOptions<EmailSettings> emailOptions,
+    IFrontendUrlBuilder frontendUrls,
     ILogger<AiChatService> logger) : IAiChatService
 {
     private const string SystemPrompt =
@@ -683,7 +683,7 @@ public class AiChatService(
                     escalation.ClientPhone,
                     escalation.ContactPreference,
                     escalation.EscalationReason,
-                    gmailOptions.Value.FrontendBaseUrl),
+                    frontendUrls),
                 $"concierge-escalated:{escalation.Id}",
                 ct);
         }

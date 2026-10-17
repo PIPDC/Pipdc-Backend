@@ -9,9 +9,9 @@ public static class EmailTemplates
 {
     private const string BrandName = "PIPDC";
 
-    public static EmailMessage DevelopmentStatusChanged(string recipientEmail, string recipientName, string projectName, string previousStatus, string newStatus, string baseUrl)
+    public static EmailMessage DevelopmentStatusChanged(string recipientEmail, string recipientName, string projectName, string previousStatus, string newStatus, IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/developments";
+        var ctaUrl = urls.Developments();
         var subject = $"{projectName} status changed to {newStatus}";
         var html = $"<div style=\"font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333\"><h2 style=\"color:#1a5276\">Development Project Update</h2><p>Hi <strong>{Esc(recipientName)}</strong>,</p><p><strong>{Esc(projectName)}</strong> changed from <strong>{Esc(previousStatus)}</strong> to <strong>{Esc(newStatus)}</strong>.</p><a href=\"{ctaUrl}\">View development projects</a><p style=\"font-size:12px;color:#888\">This is an automated notification from {BrandName}.</p></div>";
         var text = $"{projectName} changed from {previousStatus} to {newStatus}. View projects: {ctaUrl}";
@@ -27,9 +27,9 @@ public static class EmailTemplates
         string clientMessage,
         string propertyTitle,
         int enquiryId,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/enquiries/{enquiryId}";
+        var ctaUrl = urls.EnquiryMessages(enquiryId);
         var subject = $"New enquiry about {propertyTitle}";
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -71,20 +71,27 @@ public static class EmailTemplates
         string agentName,
         string messagePreview,
         string propertyTitle,
-        int enquiryId,
-        string baseUrl)
+        int? enquiryId,
+        IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/enquiries/{enquiryId}";
-        var subject = $"{agentName} replied to your enquiry about {propertyTitle}";
+        // A conversation does not require an enquiry any more, so the call to
+        // action points at the enquiry when there is one and the messages
+        // dashboard otherwise. The copy adapts to match.
+        var ctaUrl = enquiryId is not null ? urls.EnquiryMessages(enquiryId.Value) : urls.Messages();
+        var subject = enquiryId is not null
+            ? $"{agentName} replied to your enquiry about {propertyTitle}"
+            : $"{agentName} replied about {propertyTitle}";
+        var intro = enquiryId is not null ? "has replied to your enquiry about" : "has sent you a message about";
+        var action = enquiryId is not null ? "View &amp; Reply to Enquiry" : "View Conversation";
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
           <h2 style="color:#1a5276">New Reply</h2>
           <p>Hi <strong>{Esc(clientName)}</strong>,</p>
-          <p><strong>{Esc(agentName)}</strong> has replied to your enquiry about <strong>{Esc(propertyTitle)}</strong>.</p>
+          <p><strong>{Esc(agentName)}</strong> {intro} <strong>{Esc(propertyTitle)}</strong>.</p>
           <blockquote style="border-left:4px solid #1a5276;padding:12px 16px;margin:16px 0;background:#f8f9fa">
             {Esc(messagePreview)}
           </blockquote>
-          <a href="{ctaUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">View &amp; Reply to Enquiry</a>
+          <a href="{ctaUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">{action}</a>
           <p style="font-size:12px;color:#888;margin-top:24px">This is an automated notification from {BrandName}.</p>
         </div>
         """;
@@ -94,7 +101,7 @@ public static class EmailTemplates
 
         Hi {clientName},
 
-        {agentName} has replied to your enquiry about {propertyTitle}.
+        {agentName} {intro} {propertyTitle}.
 
         Message preview:
         {messagePreview}
@@ -116,20 +123,24 @@ public static class EmailTemplates
         string clientName,
         string messagePreview,
         string propertyTitle,
-        int enquiryId,
-        string baseUrl)
+        int? enquiryId,
+        IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/enquiries/{enquiryId}";
-        var subject = $"{clientName} replied to their enquiry about {propertyTitle}";
+        var ctaUrl = enquiryId is not null ? urls.EnquiryMessages(enquiryId.Value) : urls.Messages();
+        var subject = enquiryId is not null
+            ? $"{clientName} replied to their enquiry about {propertyTitle}"
+            : $"{clientName} sent a message about {propertyTitle}";
+        var intro = enquiryId is not null ? "has replied to the enquiry about" : "has sent you a message about";
+        var action = enquiryId is not null ? "View &amp; Reply to Enquiry" : "View Conversation";
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
           <h2 style="color:#1a5276">New Reply</h2>
           <p>Hi <strong>{Esc(agentName)}</strong>,</p>
-          <p><strong>{Esc(clientName)}</strong> has replied to the enquiry about <strong>{Esc(propertyTitle)}</strong>.</p>
+          <p><strong>{Esc(clientName)}</strong> {intro} <strong>{Esc(propertyTitle)}</strong>.</p>
           <blockquote style="border-left:4px solid #1a5276;padding:12px 16px;margin:16px 0;background:#f8f9fa">
             {Esc(messagePreview)}
           </blockquote>
-          <a href="{ctaUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">View &amp; Reply to Enquiry</a>
+          <a href="{ctaUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">{action}</a>
           <p style="font-size:12px;color:#888;margin-top:24px">This is an automated notification from {BrandName}.</p>
         </div>
         """;
@@ -139,7 +150,7 @@ public static class EmailTemplates
 
         Hi {agentName},
 
-        {clientName} has replied to the enquiry about {propertyTitle}.
+        {clientName} {intro} {propertyTitle}.
 
         Message preview:
         {messagePreview}
@@ -160,9 +171,9 @@ public static class EmailTemplates
         string clientName,
         string propertyTitle,
         int enquiryId,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/enquiries/{enquiryId}";
+        var ctaUrl = urls.EnquiryMessages(enquiryId);
         var subject = $"Viewing scheduled for {propertyTitle}";
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -198,9 +209,9 @@ public static class EmailTemplates
         string clientName,
         string propertyTitle,
         int enquiryId,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/enquiries/{enquiryId}";
+        var ctaUrl = urls.EnquiryMessages(enquiryId);
         var subject = $"Viewing scheduled for {propertyTitle}";
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -235,9 +246,9 @@ public static class EmailTemplates
         string clientName,
         string propertyTitle,
         int enquiryId,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/enquiries/{enquiryId}";
+        var ctaUrl = urls.EnquiryMessages(enquiryId);
         var subject = $"Your enquiry about {propertyTitle} has been resolved";
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -275,9 +286,9 @@ public static class EmailTemplates
         string clientName,
         string propertyTitle,
         int enquiryId,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/enquiries/{enquiryId}";
+        var ctaUrl = urls.EnquiryMessages(enquiryId);
         var subject = $"Enquiry from {clientName} about {propertyTitle} needs your attention";
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -314,9 +325,9 @@ public static class EmailTemplates
         string recipientName,
         string code,
         int expiryMinutes,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/verify-email";
+        var ctaUrl = urls.VerifyEmail(recipientEmail);
         var subject = "Verify your PIPDC account";
 
         var html = $"""
@@ -359,9 +370,9 @@ public static class EmailTemplates
         string recipientName,
         string code,
         int expiryMinutes,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/reset-password";
+        var ctaUrl = urls.ResetPassword(recipientEmail);
         var subject = "Reset your PIPDC password";
 
         var html = $"""
@@ -402,9 +413,9 @@ public static class EmailTemplates
     public static EmailMessage PasswordChangedNotification(
         string recipientEmail,
         string recipientName,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var ctaUrl = $"{baseUrl}/forgot-password";
+        var ctaUrl = urls.ForgotPassword();
         var subject = "Your PIPDC password was changed";
 
         var html = $"""
@@ -509,9 +520,9 @@ public static class EmailTemplates
         string applicantEmail,
         string applicantName,
         string licenseNumber,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var dashboardUrl = $"{baseUrl}/dashboard";
+        var dashboardUrl = urls.Dashboard();
 
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -554,9 +565,9 @@ public static class EmailTemplates
         string applicantEmail,
         string applicantName,
         string reason,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var reapplyUrl = $"{baseUrl}/apply-agent";
+        var reapplyUrl = urls.ApplyAgent();
 
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -596,9 +607,9 @@ public static class EmailTemplates
     public static EmailMessage AgentApplicationReceived(
         string applicantEmail,
         string applicantName,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var applicationUrl = $"{baseUrl}/dashboard/agent-application";
+        var applicationUrl = urls.MyAgentApplication();
 
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -646,9 +657,9 @@ public static class EmailTemplates
         string localGovernmentArea,
         int yearsOfExperience,
         DateTime createdAtUtc,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var reviewUrl = $"{baseUrl}/dashboard/applications";
+        var reviewUrl = urls.ApplicationQueue();
         var submittedOn = createdAtUtc.ToString("d MMMM yyyy 'at' HH:mm 'UTC'");
 
         var html = $"""
@@ -709,9 +720,9 @@ public static class EmailTemplates
         string agentName,
         string reason,
         bool listingsReassigned,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var appealUrl = $"{baseUrl}/dashboard/agent-application";
+        var appealUrl = urls.MyAgentApplication();
 
         var reassignment = listingsReassigned
             ? """
@@ -772,9 +783,9 @@ public static class EmailTemplates
         string agentEmailAddress,
         string reason,
         DateTime lodgedOn,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var appealUrl = $"{baseUrl}/dashboard/agents";
+        var appealUrl = urls.AgentAppeals();
 
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -818,9 +829,9 @@ public static class EmailTemplates
         string agentEmailAddress,
         string agentName,
         string licenseNumber,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var dashboardUrl = $"{baseUrl}/dashboard";
+        var dashboardUrl = urls.Dashboard();
 
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -865,9 +876,9 @@ public static class EmailTemplates
         string agentName,
         string decisionNote,
         bool mayReapply,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var applyUrl = $"{baseUrl}/apply-agent";
+        var applyUrl = urls.ApplyAgent();
 
         var nextStep = mayReapply
             ? $"""
@@ -918,9 +929,9 @@ public static class EmailTemplates
         string applicantEmail,
         string applicantName,
         string reason,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var contactUrl = $"{baseUrl}/contact";
+        var contactUrl = urls.Contact();
 
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -962,9 +973,9 @@ public static class EmailTemplates
     public static EmailMessage AgentApplicationBlockLifted(
         string applicantEmail,
         string applicantName,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var applyUrl = $"{baseUrl}/apply-agent";
+        var applyUrl = urls.ApplyAgent();
 
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -1003,9 +1014,9 @@ public static class EmailTemplates
         string agentName,
         string propertyTitle,
         string escalationReason,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var queueUrl = $"{baseUrl}/dashboard/escalations";
+        var queueUrl = urls.EscalationQueue();
 
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -1051,9 +1062,9 @@ public static class EmailTemplates
         string? clientPhone,
         string? contactPreference,
         string escalationReason,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var queueUrl = $"{baseUrl}/dashboard/escalations";
+        var queueUrl = urls.EscalationQueue();
 
         var contactChannel = contactPreference switch
         {
@@ -1113,9 +1124,9 @@ public static class EmailTemplates
         string clientName,
         string agentName,
         string propertyTitle,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
-        var messagesUrl = $"{baseUrl}/messages";
+        var messagesUrl = urls.Messages();
 
         var html = $"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -1225,7 +1236,7 @@ public static class EmailTemplates
         string buyerEmail,
         string buyerName,
         string propertyTitle,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
         var subject = $"Thank you for choosing {BrandName}";
         var html = $"""
@@ -1234,7 +1245,7 @@ public static class EmailTemplates
           <p>Dear <strong>{Esc(buyerName)}</strong>,</p>
           <p>We are delighted to confirm your purchase of <strong>{Esc(propertyTitle)}</strong> through {BrandName}.</p>
           <p>Thank you for trusting and patronising us. It is a privilege to have helped you find a property, and we are committed to supporting you well after the paperwork is signed.</p>
-          <a href="{baseUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">Visit {BrandName}</a>
+          <a href="{urls.Base}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">Visit {BrandName}</a>
           <p style="font-size:12px;color:#888;margin-top:24px">This is an automated message from {BrandName}.</p>
         </div>
         """;
@@ -1271,7 +1282,7 @@ public static class EmailTemplates
         string propertyTitle,
         DateTime leaseEndDate,
         int daysRemaining,
-        string baseUrl)
+        IFrontendUrlBuilder urls)
     {
         var endDate = leaseEndDate.ToString("dd MMMM yyyy");
         var remaining = daysRemaining switch
@@ -1287,7 +1298,7 @@ public static class EmailTemplates
           <p>Dear <strong>{Esc(tenantName)}</strong>,</p>
           <p>This is a reminder that your tenancy at <strong>{Esc(propertyTitle)}</strong> {Esc(remaining)} (end date: <strong>{endDate}</strong>).</p>
           <p>Please contact us if you intend to renew or if there is anything we should know before the term ends.</p>
-          <a href="{baseUrl}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">Contact {BrandName}</a>
+          <a href="{urls.Base}" style="display:inline-block;padding:12px 24px;background:#1a5276;color:#fff;text-decoration:none;border-radius:4px;margin:16px 0">Contact {BrandName}</a>
           <p style="font-size:12px;color:#888;margin-top:24px">This is an automated message from {BrandName}.</p>
         </div>
         """;

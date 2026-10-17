@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using PIPDC.Application.Auth;
 using PIPDC.Application.Common;
 using PIPDC.Application.Data;
@@ -15,7 +14,7 @@ public class AgentService(
     IAppDbContext dbContext,
     UserManager<AppUser> userManager,
     IEmailQueue emailQueue,
-    IOptions<GmailApiSettings> gmailOptions,
+    IFrontendUrlBuilder frontendUrls,
     ILogger<AgentService> logger) : IAgentService
 {
     public async Task<Result<PaginatedResult<AgentDto>>> GetAllAsync(
@@ -386,24 +385,22 @@ public class AgentService(
 
             // An enquiry has no agent column to move. Handing it over means handing
             // its conversation to the successor, because that is what routes replies
-            // and notifications. Enquiries with no conversation yet are moved by
-            // reassigning the underlying property above, which is already done.
-            var enquiryIds = openEnquiries.Select(e => e.Id).ToList();
+            // and notifications. Conversations now belong to a listing, so every
+            // thread about a reassigned property follows it — whether it came from an
+            // enquiry or was opened directly from the property page.
+            var propertyIds = properties.Select(p => p.Id).ToList();
 
-            if (enquiryIds.Count > 0)
+            var conversations = await dbContext.Conversations
+                .Where(c => propertyIds.Contains(c.PropertyId))
+                .ToListAsync(ct);
+
+            foreach (var conversation in conversations)
             {
-                var conversations = await dbContext.Conversations
-                    .Where(c => enquiryIds.Contains(c.EnquiryId))
-                    .ToListAsync(ct);
-
-                foreach (var conversation in conversations)
-                {
-                    conversation.AgentId = successor.Id;
-                    conversation.UpdatedAt = DateTime.UtcNow;
-                }
-
-                enquiriesMoved = openEnquiries.Count;
+                conversation.AgentId = successor.Id;
+                conversation.UpdatedAt = DateTime.UtcNow;
             }
+
+            enquiriesMoved = openEnquiries.Count;
         }
 
         try
@@ -440,7 +437,7 @@ public class AgentService(
                     agent.User?.FullName ?? user.UserName ?? "Agent",
                     reason,
                     successor is not null,
-                    gmailOptions.Value.FrontendBaseUrl)) == EnqueueResult.Dropped)
+                    frontendUrls)) == EnqueueResult.Dropped)
             {
                 logger.LogError(
                     "Email queue was full; the removal notification for agent {AgentId} was dropped.", id);

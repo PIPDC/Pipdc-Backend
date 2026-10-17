@@ -30,8 +30,8 @@ public class AgentApplicationService(
     UserManager<AppUser> userManager,
     IAgentLicenseGenerator licenseGenerator,
     IEmailQueue emailQueue,
-    IOptions<GmailApiSettings> gmailOptions,
     IOptions<EmailSettings> emailOptions,
+    IFrontendUrlBuilder frontendUrls,
     ILogger<AgentApplicationService> logger) : IAgentApplicationService
 {
     public async Task<Result<AgentApplicationResponse>> SubmitAsync(
@@ -135,7 +135,7 @@ public class AgentApplicationService(
                 EmailTemplates.AgentApplicationReceived(
                     user.Email,
                     application.FullName,
-                    gmailOptions.Value.FrontendBaseUrl),
+                    frontendUrls),
                 "agent-application-received",
                 cancellationToken);
         }
@@ -166,7 +166,7 @@ public class AgentApplicationService(
                 application.LocalGovernmentArea,
                 application.YearsOfExperience ?? 0,
                 application.CreatedAt,
-                gmailOptions.Value.FrontendBaseUrl),
+                frontendUrls),
             "agent-application-admin-alert",
             cancellationToken);
     }
@@ -357,7 +357,7 @@ public class AgentApplicationService(
                     user.Email ?? "not recorded",
                     reason,
                     appeal.CreatedAt,
-                    gmailOptions.Value.FrontendBaseUrl),
+                    frontendUrls),
                 "agent-appeal-admin-alert",
                 cancellationToken);
         }
@@ -583,7 +583,7 @@ public class AgentApplicationService(
         {
             var name = appeal.User?.FullName ?? "Agent";
             var message = upheld
-                ? EmailTemplates.AgentAppealUpheld(email, name, licenceNumber, gmailOptions.Value.FrontendBaseUrl)
+                ? EmailTemplates.AgentAppealUpheld(email, name, licenceNumber, frontendUrls)
                 // A refused appeal only advertises reapplying if the bar allows it,
                 // so the email cannot promise something the API will refuse.
                 : EmailTemplates.AgentAppealRefused(
@@ -592,7 +592,7 @@ public class AgentApplicationService(
                     note,
                     mayReapply: !await dbContext.AgentApplicationBlocks.AnyAsync(
                         b => b.UserId == appeal.UserId && b.LiftedAt == null, cancellationToken),
-                    gmailOptions.Value.FrontendBaseUrl);
+                    frontendUrls);
 
             emailQueue.QueueEmail(logger, message, "agent-appeal-outcome", cancellationToken);
         }
@@ -683,7 +683,7 @@ public class AgentApplicationService(
                     user.Email,
                     user.FullName ?? user.UserName ?? "Applicant",
                     trimmed,
-                    gmailOptions.Value.FrontendBaseUrl),
+                    frontendUrls),
                 "agent-application-blocked",
                 cancellationToken);
         }
@@ -734,7 +734,7 @@ public class AgentApplicationService(
                 EmailTemplates.AgentApplicationBlockLifted(
                     barredUser.Email,
                     barredUser.FullName ?? barredUser.UserName ?? "Applicant",
-                    gmailOptions.Value.FrontendBaseUrl),
+                    frontendUrls),
                 "agent-application-unblocked",
                 cancellationToken);
         }
@@ -1000,7 +1000,7 @@ public class AgentApplicationService(
                 user.Email!,
                 application.FullName,
                 license.Value,
-                gmailOptions.Value.FrontendBaseUrl));
+                frontendUrls));
 
         return Result<AgentApplicationReviewResponse>.Success(MapReview(application));
     }
@@ -1048,7 +1048,7 @@ public class AgentApplicationService(
                 application.User.Email!,
                 application.FullName,
                 trimmed,
-                gmailOptions.Value.FrontendBaseUrl));
+                frontendUrls));
 
         return Result<AgentApplicationReviewResponse>.Success(MapReview(application));
     }

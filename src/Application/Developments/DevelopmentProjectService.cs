@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using PIPDC.Application.Auth;
 using PIPDC.Application.Common;
 using PIPDC.Application.Data;
@@ -16,7 +15,7 @@ public class DevelopmentProjectService(
     IAppDbContext dbContext,
     UserManager<AppUser> userManager,
     IEmailQueue emailQueue,
-    IOptions<GmailApiSettings> gmailOptions,
+    IFrontendUrlBuilder frontendUrls,
     IDevelopmentListingPromoter listingPromoter,
     ILogger<DevelopmentProjectService> logger) : IDevelopmentProjectService
 {
@@ -516,7 +515,7 @@ p.Units.OrderBy(u => u.UnitIdentifier).Select(u => new DevelopmentUnitDto(
                 continue;
 
             emailQueue.QueueEmail(logger, EmailTemplates.DevelopmentStatusChanged(
-                admin.Email, admin.FullName, project.Name, previousStatus.ToString(), project.Status.ToString(), gmailOptions.Value.FrontendBaseUrl), "development-status-changed");
+                admin.Email, admin.FullName, project.Name, previousStatus.ToString(), project.Status.ToString(), frontendUrls), "development-status-changed");
         }
     }
 

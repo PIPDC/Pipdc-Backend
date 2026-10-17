@@ -18,7 +18,7 @@ namespace PIPDC.Infrastructure.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.20")
+                .HasAnnotation("ProductVersion", "9.0.21")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -1055,7 +1055,7 @@ namespace PIPDC.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("EnquiryId")
+                    b.Property<int?>("EnquiryId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("EscalatedAt")
@@ -1078,6 +1078,9 @@ namespace PIPDC.Infrastructure.Data.Migrations
 
                     b.Property<DateTime?>("LastMessageAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PropertyId")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("ResolvedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1104,7 +1107,12 @@ namespace PIPDC.Infrastructure.Data.Migrations
 
                     b.HasIndex("EscalationStatus");
 
+                    b.HasIndex("PropertyId");
+
                     b.HasIndex("ResolvedByUserId");
+
+                    b.HasIndex("ClientUserId", "AgentId", "PropertyId")
+                        .IsUnique();
 
                     b.ToTable("Conversations");
                 });
@@ -2629,13 +2637,18 @@ namespace PIPDC.Infrastructure.Data.Migrations
                     b.HasOne("PIPDC.Domain.Entities.Enquiry", "Enquiry")
                         .WithOne("Conversation")
                         .HasForeignKey("PIPDC.Domain.Entities.Conversation", "EnquiryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("PIPDC.Domain.Entities.AppUser", "EscalatedByUser")
                         .WithMany()
                         .HasForeignKey("EscalatedByUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PIPDC.Domain.Entities.Property", "Property")
+                        .WithMany()
+                        .HasForeignKey("PropertyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("PIPDC.Domain.Entities.AppUser", "ResolvedByUser")
                         .WithMany()
@@ -2651,6 +2664,8 @@ namespace PIPDC.Infrastructure.Data.Migrations
                     b.Navigation("Enquiry");
 
                     b.Navigation("EscalatedByUser");
+
+                    b.Navigation("Property");
 
                     b.Navigation("ResolvedByUser");
                 });
