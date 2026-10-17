@@ -8,12 +8,14 @@ public interface IPropertyService
     // The includeSuspendedAgents flag on the public reads is supplied by the API
     // layer from the caller's own role. It is never bound from a query string, so
     // a public caller cannot ask to see properties owned by a suspended agent.
+    // includeSold works the same way: a sold property is pulled from the public
+    // site but stays visible to the agents and admins who still report on it.
     Task<Result<PaginatedResult<PropertyDto>>> GetAllAsync(
-        PropertyQueryParameters queryParams, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct);
-    Task<Result<PropertyDto>> GetByIdAsync(int id, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct);
-    Task<Result<PropertyDto>> GetBySlugAsync(string slug, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct);
+        PropertyQueryParameters queryParams, string? currentUserId, bool includeSuspendedAgents, bool includeSold, CancellationToken ct);
+    Task<Result<PropertyDto>> GetByIdAsync(int id, string? currentUserId, bool includeSuspendedAgents, bool includeSold, CancellationToken ct);
+    Task<Result<PropertyDto>> GetBySlugAsync(string slug, string? currentUserId, bool includeSuspendedAgents, bool includeSold, CancellationToken ct);
     Task<Result<IReadOnlyList<PropertyDto>>> GetFeaturedAsync(string? currentUserId, bool includeSuspendedAgents, CancellationToken ct);
-    Task<Result<IReadOnlyList<PropertyDto>>> GetSimilarAsync(int id, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct);
+    Task<Result<IReadOnlyList<PropertyDto>>> GetSimilarAsync(int id, string? currentUserId, bool includeSuspendedAgents, bool includeSold, CancellationToken ct);
     // Batch 5. Always resolved from the signed-in user; no user id is accepted from
     // the caller. Visibility is applied inside the service rather than trusting the
     // API layer, because a nearby list is a public surface.

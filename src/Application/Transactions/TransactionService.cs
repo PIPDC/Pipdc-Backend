@@ -24,6 +24,149 @@ public class TransactionService(
     private const int ReminderWindowDays = 30;
 
     // =========================
+    // Tenancy lifecycle
+    // =========================
+
+    public async Task<Result<TenantInfoDto>> RenewLeaseAsync(
+        int leaseId, DateTime newEndDate, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
+    {
+        if (!currentUserRoles.Contains(Roles.Admin))
+            return Result<TenantInfoDto>.Failure(
+                Error.Forbidden("transaction.forbidden", "Only admins can renew a tenancy."));
+
+        var lease = await dbContext.LeaseRecords
+            .Include(l => l.Property)
+            .FirstOrDefaultAsync(l => l.Id == leaseId, ct);
+        if (lease is null)
+            return Result<TenantInfoDto>.Failure(
+                Error.NotFound("transaction.leasenotfound", $"Lease record with id {leaseId} was not found."));
+
+        if (lease.Status is not (TransactionStatus.Pending or TransactionStatus.Active))
+            return Result<TenantInfoDto>.Failure(
+                Error.Conflict("transaction.leasenotfinal", "Only a tenancy that is still in force can be renewed."));
+
+        if (newEndDate == default)
+            return Result<TenantInfoDto>.Failure(
+                Error.Validation("transaction.renewalendrequired", "A new lease end date is required."));
+
+        var newEnd = newEndDate.Date;
+        if (newEnd < lease.LeaseEndDate.Date)
+            return Result<TenantInfoDto>.Failure(
+                Error.Validation(
+                    "transaction.renewalendbeforecurrent",
+                    "A renewal must extend the lease, not shorten it."));
+
+        // Renewing to the same date is a harmless no-op, so it succeeds rather than
+        // forcing the admin to pick a date the server will accept.
+        if (newEnd != lease.LeaseEndDate.Date)
+        {
+            lease.LeaseEndDate = newEnd;
+
+            // The previous reminder belonged to the old term. Clearing it lets the
+            // worker mail the tenant again as the new end date approaches.
+            lease.RentReminderSentAt = null;
+            lease.UpdatedAt = DateTime.UtcNow;
+
+            // A renewed tenancy keeps whoever already lives there, so the property
+            // stays rented. Re-asserting it also repairs a listing left behind.
+            lease.Property.Status = PropertyStatus.Rented;
+            lease.Property.UpdatedAt = DateTime.UtcNow;
+
+            try
+            {
+                await dbContext.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Result<TenantInfoDto>.Failure(Error.Concurrency());
+            }
+
+            logger.LogInformation(
+                "Lease {LeaseId} renewed to {NewEndDate} by {UserId}.", leaseId, lease.LeaseEndDate, currentUserId);
+        }
+
+        return Result<TenantInfoDto>.Success(ToTenantInfo(lease));
+    }
+
+    public async Task<Result<TenantInfoDto>> EndLeaseAsync(
+        int leaseId, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
+    {
+        if (!currentUserRoles.Contains(Roles.Admin))
+            return Result<TenantInfoDto>.Failure(
+                Error.Forbidden("transaction.forbidden", "Only admins can end a tenancy."));
+
+        var lease = await dbContext.LeaseRecords
+            .Include(l => l.Property)
+            .FirstOrDefaultAsync(l => l.Id == leaseId, ct);
+        if (lease is null)
+            return Result<TenantInfoDto>.Failure(
+                Error.NotFound("transaction.leasenotfound", $"Lease record with id {leaseId} was not found."));
+
+        // Already over: a repeated click is a success so the UI can be retried
+        // safely rather than being told the tenancy it just ended does not exist.
+        if (lease.Status is TransactionStatus.Terminated or TransactionStatus.Completed)
+            return Result<TenantInfoDto>.Success(ToTenantInfo(lease));
+
+        if (lease.Status is not (TransactionStatus.Pending or TransactionStatus.Active))
+            return Result<TenantInfoDto>.Failure(
+                Error.Conflict("transaction.leasenotfinal", "Only a tenancy that is still in force can be ended."));
+
+        lease.Status = TransactionStatus.Terminated;
+        lease.UpdatedAt = DateTime.UtcNow;
+
+        // The tenant has left, so the property is genuinely free again. Only a
+        // rented listing is moved; a listing an admin had already withdrawn keeps
+        // the status they chose.
+        if (lease.Property.Status == PropertyStatus.Rented)
+        {
+            lease.Property.Status = PropertyStatus.Available;
+            lease.Property.UpdatedAt = DateTime.UtcNow;
+        }
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result<TenantInfoDto>.Failure(Error.Concurrency());
+        }
+
+        logger.LogInformation(
+            "Lease {LeaseId} ended after the tenant left; property {PropertyId} returned to the market by {UserId}.",
+            leaseId, lease.PropertyId, currentUserId);
+
+        return Result<TenantInfoDto>.Success(ToTenantInfo(lease));
+    }
+
+    private static TenantInfoDto ToTenantInfo(LeaseRecord lease)
+    {
+        var daysRemaining = (lease.LeaseEndDate.Date - DateTime.UtcNow.Date).Days;
+        return new TenantInfoDto
+        {
+            LeaseId = lease.Id,
+            TenantName = lease.TenantName,
+            TenantEmail = lease.TenantEmail,
+            TenantPhone = lease.TenantPhone,
+            TenantUserId = lease.TenantUserId,
+            PropertyId = lease.PropertyId,
+            PropertyTitle = lease.Property.Title,
+            PropertySlug = lease.Property.Slug,
+            PropertyCity = lease.Property.City,
+            PropertyState = lease.Property.State,
+            Currency = lease.Property.Currency,
+            MonthlyRent = lease.MonthlyRent,
+            LeaseStartDate = lease.LeaseStartDate,
+            LeaseEndDate = lease.LeaseEndDate,
+            Status = lease.Status,
+            StatusLabel = lease.Status.ToString(),
+            DaysRemaining = daysRemaining,
+            ReminderDue = daysRemaining <= ReminderWindowDays,
+            ReminderSentAt = lease.RentReminderSentAt
+        };
+    }
+
+    // =========================
     // Recording
     // =========================
 

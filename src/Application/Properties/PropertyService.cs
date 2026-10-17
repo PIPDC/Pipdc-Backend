@@ -28,6 +28,7 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         PropertyQueryParameters q,
         string? currentUserId,
         bool includeSuspendedAgents,
+        bool includeSold,
         CancellationToken ct)
     {
         // Properties belonging to a suspended agent are hidden from public
@@ -84,6 +85,12 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
         query = ApplyStatusFilter(query, q.Status);
 
+        // A sold property is off the public market for good. The dashboard calls
+        // this with includeSold set from the caller's role, so the agent and admin
+        // screens keep the full ledger while the public site never sees these rows.
+        if (!includeSold)
+            query = query.Where(p => p.Status != PropertyStatus.Sold);
+
         if (q.MinPrice.HasValue)
             query = query.Where(p => p.Price >= q.MinPrice.Value);
 
@@ -115,10 +122,16 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
     }
 
     public async Task<Result<PropertyDto>> GetByIdAsync(
-        int id, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct)
+        int id, string? currentUserId, bool includeSuspendedAgents, bool includeSold, CancellationToken ct)
     {
         var property = await LoadPropertyAsync(id, includeSuspendedAgents, ct);
         if (property is null)
+            return Result<PropertyDto>.Failure(
+                Error.NotFound("property.notfound", $"Property with id {id} was not found."));
+
+        // Sold homes are removed from the public site, so a public caller asking
+        // for one by id gets the same "not found" as a property that never existed.
+        if (!includeSold && property.Status == PropertyStatus.Sold)
             return Result<PropertyDto>.Failure(
                 Error.NotFound("property.notfound", $"Property with id {id} was not found."));
 
@@ -127,7 +140,7 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
     }
 
     public async Task<Result<PropertyDto>> GetBySlugAsync(
-        string slug, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct)
+        string slug, string? currentUserId, bool includeSuspendedAgents, bool includeSold, CancellationToken ct)
     {
         IQueryable<Property> query = dbContext.Properties
             .Include(p => p.Agent)
@@ -136,6 +149,9 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
 
         if (!includeSuspendedAgents)
             query = query.VisibleProperties();
+
+        if (!includeSold)
+            query = query.Where(p => p.Status != PropertyStatus.Sold);
 
         var property = await query.FirstOrDefaultAsync(p => p.Slug == slug, ct);
 
@@ -164,7 +180,7 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
     }
 
     public async Task<Result<IReadOnlyList<PropertyDto>>> GetSimilarAsync(
-        int id, string? currentUserId, bool includeSuspendedAgents, CancellationToken ct)
+        int id, string? currentUserId, bool includeSuspendedAgents, bool includeSold, CancellationToken ct)
     {
         // The seed is read through the same visibility rule as the candidates.
         // Loading it unfiltered would answer 200 with an empty list for a hidden
@@ -173,6 +189,8 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         IQueryable<Property> seedQuery = dbContext.Properties;
         if (!includeSuspendedAgents)
             seedQuery = seedQuery.VisibleProperties();
+        if (!includeSold)
+            seedQuery = seedQuery.Where(p => p.Status != PropertyStatus.Sold);
 
         var property = await seedQuery.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (property is null)
@@ -460,6 +478,10 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         if (updateDealError is not null)
             return Result<PropertyDto>.Failure(updateDealError);
 
+        var updateTransitionError = await ValidateStatusTransitionAsync(property, status, ct);
+        if (updateTransitionError is not null)
+            return Result<PropertyDto>.Failure(updateTransitionError);
+
         if (currentUserRoles.Contains(Roles.Admin) && request.AgentId.HasValue)
         {
             if (!await dbContext.Agents.AnyAsync(a => a.Id == request.AgentId.Value, ct))
@@ -639,6 +661,10 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
         var dealError = await RequireTransactionForDealStatusAsync(id, newStatus, ct);
         if (dealError is not null)
             return Result<PropertyDto>.Failure(dealError);
+
+        var transitionError = await ValidateStatusTransitionAsync(property, newStatus, ct);
+        if (transitionError is not null)
+            return Result<PropertyDto>.Failure(transitionError);
 
         property.Status = newStatus;
         property.UpdatedAt = DateTime.UtcNow;
@@ -1021,6 +1047,42 @@ public class PropertyService(IAppDbContext dbContext, IImageService imageService
             : Error.Validation(
                 "property.transactionrequired",
                 $"Record the {kind} for this property before marking it {newStatus}, so the buyer or tenant is captured.");
+    }
+
+    /// <summary>
+    /// Guards the statuses a recorded deal leaves behind. Sold is final: a home
+    /// that has changed hands must not be advertised for sale again, so the only
+    /// way back onto the market is a new listing. Rented stays rented while a
+    /// tenancy is in force - a tenant does not lose their home because the status
+    /// field was edited - so the listing frees up only once the tenancy is ended
+    /// or the term runs out. Every other transition is left alone.
+    /// </summary>
+    private async Task<Error?> ValidateStatusTransitionAsync(Property property, PropertyStatus newStatus, CancellationToken ct)
+    {
+        if (newStatus == property.Status)
+            return null;
+
+        if (property.Status == PropertyStatus.Sold)
+            return Error.Validation(
+                "property.soldfinal",
+                "This property has been sold and the sale is final, so it cannot be listed again.");
+
+        if (property.Status == PropertyStatus.Rented)
+        {
+            var liveLeaseEnd = await dbContext.LeaseRecords.AsNoTracking()
+                .Where(l => l.PropertyId == property.Id
+                            && (l.Status == TransactionStatus.Pending || l.Status == TransactionStatus.Active))
+                .OrderByDescending(l => l.LeaseEndDate)
+                .Select(l => (DateTime?)l.LeaseEndDate)
+                .FirstOrDefaultAsync(ct);
+
+            if (liveLeaseEnd is not null && liveLeaseEnd.Value.Date >= DateTime.UtcNow.Date)
+                return Error.Validation(
+                    "property.tenanted",
+                    $"This property is tenanted until {liveLeaseEnd.Value:yyyy-MM-dd}. End the tenancy or wait for the rent to expire before changing its status.");
+        }
+
+        return null;
     }
 
     private static bool TryResolveStatus(string? statusLabel, out PropertyStatus status)

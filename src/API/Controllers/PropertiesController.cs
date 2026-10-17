@@ -26,10 +26,16 @@ public class PropertiesController(IPropertyService propertyService) : Controller
     /// </summary>
     private bool IncludeSuspendedAgents => CurrentUserRoles.Contains(Roles.Admin);
 
+    /// <summary>
+    /// Sold properties are withheld from the public site, but the agent and admin
+    /// screens still report on them. Also derived from the caller's own role.
+    /// </summary>
+    private bool IncludeSold => CurrentUserRoles.Contains(Roles.Admin) || CurrentUserRoles.Contains(Roles.Agent);
+
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] PropertyQueryParameters queryParams, CancellationToken ct)
     {
-        var result = await propertyService.GetAllAsync(queryParams, CurrentUserId, IncludeSuspendedAgents, ct);
+        var result = await propertyService.GetAllAsync(queryParams, CurrentUserId, IncludeSuspendedAgents, IncludeSold, ct);
         return result.ToActionResult();
     }
 
@@ -57,21 +63,21 @@ public class PropertiesController(IPropertyService propertyService) : Controller
     [HttpGet("slug/{slug}")]
     public async Task<IActionResult> GetBySlug(string slug, CancellationToken ct)
     {
-        var result = await propertyService.GetBySlugAsync(slug, CurrentUserId, IncludeSuspendedAgents, ct);
+        var result = await propertyService.GetBySlugAsync(slug, CurrentUserId, IncludeSuspendedAgents, IncludeSold, ct);
         return result.ToActionResult();
     }
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id, CancellationToken ct)
     {
-        var result = await propertyService.GetByIdAsync(id, CurrentUserId, IncludeSuspendedAgents, ct);
+        var result = await propertyService.GetByIdAsync(id, CurrentUserId, IncludeSuspendedAgents, IncludeSold, ct);
         return result.ToActionResult();
     }
 
     [HttpGet("{id:int}/similar")]
     public async Task<IActionResult> GetSimilar(int id, CancellationToken ct)
     {
-        var result = await propertyService.GetSimilarAsync(id, CurrentUserId, IncludeSuspendedAgents, ct);
+        var result = await propertyService.GetSimilarAsync(id, CurrentUserId, IncludeSuspendedAgents, IncludeSold, ct);
         return result.ToActionResult();
     }
 

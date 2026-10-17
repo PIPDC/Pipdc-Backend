@@ -112,4 +112,33 @@ public class TransactionsController(ITransactionService transactionService) : Co
         var result = await transactionService.NotifyTenantAsync(leaseId, CurrentUserId, CurrentUserRoles, ct);
         return result.ToActionResult();
     }
+
+    /// <summary>
+    /// Admin-only. Extends a live tenancy's end date and clears its rent reminder.
+    /// Not [Idempotent]: renewing twice to the same date is already a safe no-op,
+    /// so no replay key is needed.
+    /// </summary>
+    [HttpPost("leases/{leaseId:int}/renew")]
+    [Authorize(Roles = Roles.Admin)]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> RenewLease(int leaseId, [FromBody] RenewLeaseRequest request, CancellationToken ct)
+    {
+        var result = await transactionService.RenewLeaseAsync(leaseId, request.NewEndDate, CurrentUserId, CurrentUserRoles, ct);
+        return result.ToActionResult();
+    }
+
+    /// <summary>
+    /// Admin-only. Ends a tenancy because the tenant has left and returns the
+    /// property to the market. This is the only supported way to free a rented
+    /// listing, which is why the property status cannot be edited to Available
+    /// while a live lease is on file.
+    /// </summary>
+    [HttpPost("leases/{leaseId:int}/end")]
+    [Authorize(Roles = Roles.Admin)]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> EndLease(int leaseId, CancellationToken ct)
+    {
+        var result = await transactionService.EndLeaseAsync(leaseId, CurrentUserId, CurrentUserRoles, ct);
+        return result.ToActionResult();
+    }
 }
