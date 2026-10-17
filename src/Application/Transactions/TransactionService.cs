@@ -20,9 +20,6 @@ public class TransactionService(
     IOptions<GmailApiSettings> gmailOptions,
     ILogger<TransactionService> logger) : ITransactionService
 {
-    /// <summary>A tenancy inside this many days of expiry is "about to be due".</summary>
-    private const int ReminderWindowDays = 30;
-
     // =========================
     // Tenancy lifecycle
     // =========================
@@ -30,9 +27,13 @@ public class TransactionService(
     public async Task<Result<TenantInfoDto>> RenewLeaseAsync(
         int leaseId, DateTime newEndDate, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        if (!currentUserRoles.Contains(Roles.Admin))
-            return Result<TenantInfoDto>.Failure(
-                Error.Forbidden("transaction.forbidden", "Only admins can renew a tenancy."));
+        var scope = await ResolveScopeAsync(
+            currentUserId,
+            currentUserRoles,
+            "Only administrators and the agent who handles a property can renew its tenancy.",
+            ct);
+        if (scope.IsFailure)
+            return Result<TenantInfoDto>.Failure(scope.Error);
 
         var lease = await dbContext.LeaseRecords
             .Include(l => l.Property)
@@ -40,6 +41,10 @@ public class TransactionService(
         if (lease is null)
             return Result<TenantInfoDto>.Failure(
                 Error.NotFound("transaction.leasenotfound", $"Lease record with id {leaseId} was not found."));
+
+        if (!ScopeAllows(scope.Value, lease.Property))
+            return Result<TenantInfoDto>.Failure(
+                Error.Forbidden("transaction.forbidden", "You can only renew a tenancy on a property assigned to you."));
 
         if (lease.Status is not (TransactionStatus.Pending or TransactionStatus.Active))
             return Result<TenantInfoDto>.Failure(
@@ -91,9 +96,13 @@ public class TransactionService(
     public async Task<Result<TenantInfoDto>> EndLeaseAsync(
         int leaseId, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        if (!currentUserRoles.Contains(Roles.Admin))
-            return Result<TenantInfoDto>.Failure(
-                Error.Forbidden("transaction.forbidden", "Only admins can end a tenancy."));
+        var scope = await ResolveScopeAsync(
+            currentUserId,
+            currentUserRoles,
+            "Only administrators and the agent who handles a property can end its tenancy.",
+            ct);
+        if (scope.IsFailure)
+            return Result<TenantInfoDto>.Failure(scope.Error);
 
         var lease = await dbContext.LeaseRecords
             .Include(l => l.Property)
@@ -101,6 +110,10 @@ public class TransactionService(
         if (lease is null)
             return Result<TenantInfoDto>.Failure(
                 Error.NotFound("transaction.leasenotfound", $"Lease record with id {leaseId} was not found."));
+
+        if (!ScopeAllows(scope.Value, lease.Property))
+            return Result<TenantInfoDto>.Failure(
+                Error.Forbidden("transaction.forbidden", "You can only end a tenancy on a property assigned to you."));
 
         // Already over: a repeated click is a success so the UI can be retried
         // safely rather than being told the tenancy it just ended does not exist.
@@ -161,7 +174,7 @@ public class TransactionService(
             Status = lease.Status,
             StatusLabel = lease.Status.ToString(),
             DaysRemaining = daysRemaining,
-            ReminderDue = daysRemaining <= ReminderWindowDays,
+            ReminderDue = daysRemaining <= LeaseReminderPolicy.WindowDays(lease.LeaseStartDate, lease.LeaseEndDate),
             ReminderSentAt = lease.RentReminderSentAt
         };
     }
@@ -373,9 +386,13 @@ public class TransactionService(
     public async Task<Result<PaginatedResult<TransactionDto>>> GetAllAsync(
         TransactionQueryParameters query, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        if (!currentUserRoles.Contains(Roles.Admin))
-            return Result<PaginatedResult<TransactionDto>>.Failure(
-                Error.Forbidden("transaction.forbidden", "Only administrators can list all transactions."));
+        var scope = await ResolveScopeAsync(
+            currentUserId,
+            currentUserRoles,
+            "Only administrators and agents can list transactions.",
+            ct);
+        if (scope.IsFailure)
+            return Result<PaginatedResult<TransactionDto>>.Failure(scope.Error);
 
         var status = TryParseStatus(query.Status);
         if (query.Status is not null && status is null)
@@ -394,12 +411,13 @@ public class TransactionService(
         var includeSales = kind is null or "" or "sale" or "sales";
         var includeLeases = kind is null or "" or "lease" or "leases";
 
+
         if (!includeSales && !includeLeases)
             return Result<PaginatedResult<TransactionDto>>.Failure(
                 Error.Validation("transaction.invalidkind", "Kind must be 'Sale' or 'Lease'."));
 
-        var sales = ProjectedSales();
-        var leases = ProjectedLeases();
+        var sales = ProjectedSales(scope.Value);
+        var leases = ProjectedLeases(scope.Value);
 
         if (status is not null)
         {
@@ -472,9 +490,14 @@ public class TransactionService(
     public async Task<Result<TransactionAnalyticsDto>> GetAnalyticsAsync(
         DateTime? from, DateTime? to, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        if (!currentUserRoles.Contains(Roles.Admin))
-            return Result<TransactionAnalyticsDto>.Failure(
-                Error.Forbidden("transaction.forbidden", "Only administrators can view transaction analytics."));
+        var scope = await ResolveScopeAsync(
+            currentUserId,
+            currentUserRoles,
+            "Only administrators and agents can view transaction analytics.",
+            ct);
+        if (scope.IsFailure)
+            return Result<TransactionAnalyticsDto>.Failure(scope.Error);
+        var agentId = scope.Value;
 
         var start = (from?.Date ?? DateTime.UtcNow.Date.AddMonths(-11));
         var endExclusive = (to?.Date ?? DateTime.UtcNow.Date).AddDays(1);
@@ -484,9 +507,12 @@ public class TransactionService(
                 Error.Validation("transaction.invalidrange", "The start date must fall before the end date."));
 
         var sales = dbContext.SaleRecords.AsNoTracking()
-            .Where(s => s.SaleDate >= start && s.SaleDate < endExclusive);
+            .Where(s => s.SaleDate >= start && s.SaleDate < endExclusive)
+            .Where(s => agentId == null || s.Property.AgentId == agentId);
+
         var leases = dbContext.LeaseRecords.AsNoTracking()
-            .Where(l => l.LeaseStartDate >= start && l.LeaseStartDate < endExclusive);
+            .Where(l => l.LeaseStartDate >= start && l.LeaseStartDate < endExclusive)
+            .Where(l => agentId == null || l.Property.AgentId == agentId);
 
         var saleCount = await sales.CountAsync(ct);
         var leaseCount = await leases.CountAsync(ct);
@@ -495,7 +521,8 @@ public class TransactionService(
         var totalMonthlyRent = await leases.SumAsync(l => (decimal?)l.MonthlyRent, ct) ?? 0m;
 
         var activeLeaseCount = await dbContext.LeaseRecords.AsNoTracking()
-            .CountAsync(l => l.Status == TransactionStatus.Active, ct);
+            .CountAsync(l => l.Status == TransactionStatus.Active
+                             && (agentId == null || l.Property.AgentId == agentId), ct);
 
         // Lease term value needs a per-row month count, which Npgsql cannot fold into
         // one aggregate over an interval, so the arithmetic happens in memory over a
@@ -545,11 +572,13 @@ public class TransactionService(
             .ToList();
 
         var leaseStatusGroups = await dbContext.LeaseRecords.AsNoTracking()
+            .Where(l => agentId == null || l.Property.AgentId == agentId)
             .GroupBy(l => l.Status)
             .Select(g => new { Status = g.Key, Count = g.Count(), Value = g.Sum(l => l.MonthlyRent) })
             .ToListAsync(ct);
 
         var saleStatusGroups = await dbContext.SaleRecords.AsNoTracking()
+            .Where(s => agentId == null || s.Property.AgentId == agentId)
             .GroupBy(s => s.Status)
             .Select(g => new { Status = g.Key, Count = g.Count(), Value = g.Sum(s => s.SalePrice) })
             .ToListAsync(ct);
@@ -561,12 +590,14 @@ public class TransactionService(
 
         var cityBreakdown = await dbContext.SaleRecords.AsNoTracking()
             .Where(s => s.SaleDate >= start && s.SaleDate < endExclusive)
+            .Where(s => agentId == null || s.Property.AgentId == agentId)
             .GroupBy(s => s.Property.City)
             .Select(g => new { City = g.Key, Count = g.Count(), Value = g.Sum(s => s.SalePrice) })
             .ToListAsync(ct);
 
         var cityLeases = await dbContext.LeaseRecords.AsNoTracking()
             .Where(l => l.LeaseStartDate >= start && l.LeaseStartDate < endExclusive)
+            .Where(l => agentId == null || l.Property.AgentId == agentId)
             .GroupBy(l => l.Property.City)
             .Select(g => new { City = g.Key, Count = g.Count(), Value = g.Sum(l => l.MonthlyRent) })
             .ToListAsync(ct);
@@ -581,6 +612,7 @@ public class TransactionService(
 
         var topSales = await dbContext.SaleRecords.AsNoTracking()
             .Where(s => s.SaleDate >= start && s.SaleDate < endExclusive)
+            .Where(s => agentId == null || s.Property.AgentId == agentId)
             .OrderByDescending(s => s.SalePrice)
             .Take(5)
             .Select(s => new PropertyPerformanceDto
@@ -598,6 +630,7 @@ public class TransactionService(
 
         var topLeases = await dbContext.LeaseRecords.AsNoTracking()
             .Where(l => l.LeaseStartDate >= start && l.LeaseStartDate < endExclusive)
+            .Where(l => agentId == null || l.Property.AgentId == agentId)
             .OrderByDescending(l => l.MonthlyRent)
             .Take(5)
             .Select(l => new PropertyPerformanceDto
@@ -617,31 +650,38 @@ public class TransactionService(
         // Enquiry.Status, so closing a deal never rewrites a client's history.
         var linkedEnquiryIds = await dbContext.SaleRecords.AsNoTracking()
             .Where(s => s.EnquiryId != null)
+            .Where(s => agentId == null || s.Property.AgentId == agentId)
             .Select(s => s.EnquiryId!.Value)
             .Concat(dbContext.LeaseRecords.AsNoTracking()
                 .Where(l => l.EnquiryId != null)
+                .Where(l => agentId == null || l.Property.AgentId == agentId)
                 .Select(l => l.EnquiryId!.Value))
             .Distinct()
             .ToListAsync(ct);
 
         var enquiryCount = await dbContext.Enquiries.AsNoTracking()
-            .CountAsync(e => e.CreatedAt >= start && e.CreatedAt < endExclusive, ct);
+            .CountAsync(e => e.CreatedAt >= start && e.CreatedAt < endExclusive
+                             && (agentId == null || e.Property.AgentId == agentId), ct);
 
         var openEnquiries = await dbContext.Enquiries.AsNoTracking()
-            .CountAsync(e => e.Status != EnquiryStatus.Resolved, ct);
+            .CountAsync(e => e.Status != EnquiryStatus.Resolved
+                             && (agentId == null || e.Property.AgentId == agentId), ct);
 
         var analytics = new TransactionAnalyticsDto
         {
             GeneratedAt = DateTime.UtcNow,
             Currency = await dbContext.Properties.AsNoTracking()
+                .Where(p => agentId == null || p.AgentId == agentId)
                 .Select(p => p.Currency)
                 .FirstOrDefaultAsync(ct) ?? "NGN",
 
             // Distinguishes "no transactions yet" from "transactions but none in this
             // window", so the UI can say which one it is instead of showing an
             // unexplained empty chart.
-            HasAnyTransactions = await dbContext.SaleRecords.AsNoTracking().AnyAsync(ct)
-                                 || await dbContext.LeaseRecords.AsNoTracking().AnyAsync(ct),
+            HasAnyTransactions = await dbContext.SaleRecords.AsNoTracking()
+                                     .AnyAsync(s => agentId == null || s.Property.AgentId == agentId, ct)
+                                 || await dbContext.LeaseRecords.AsNoTracking()
+                                     .AnyAsync(l => agentId == null || l.Property.AgentId == agentId, ct),
 
             Totals = new TransactionTotalsDto
             {
@@ -651,8 +691,12 @@ public class TransactionService(
                 TotalMonthlyRent = totalMonthlyRent,
                 TotalLeaseTermValue = totalLeaseTermValue,
                 ActiveLeaseCount = activeLeaseCount,
-                PropertiesSold = await dbContext.Properties.AsNoTracking().CountAsync(p => p.Status == PropertyStatus.Sold, ct),
-                PropertiesRented = await dbContext.Properties.AsNoTracking().CountAsync(p => p.Status == PropertyStatus.Rented, ct),
+                PropertiesSold = await dbContext.Properties.AsNoTracking()
+                    .CountAsync(p => p.Status == PropertyStatus.Sold
+                                     && (agentId == null || p.AgentId == agentId), ct),
+                PropertiesRented = await dbContext.Properties.AsNoTracking()
+                    .CountAsync(p => p.Status == PropertyStatus.Rented
+                                     && (agentId == null || p.AgentId == agentId), ct),
                 AverageSalePrice = saleCount == 0 ? 0m : totalSaleValue / saleCount
             },
 
@@ -688,14 +732,20 @@ public class TransactionService(
     public async Task<Result<IReadOnlyList<TenantInfoDto>>> GetTenantsAsync(
         string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        if (!currentUserRoles.Contains(Roles.Admin))
-            return Result<IReadOnlyList<TenantInfoDto>>.Failure(
-                Error.Forbidden("transaction.forbidden", "Only administrators can view tenant information."));
+        var scope = await ResolveScopeAsync(
+            currentUserId,
+            currentUserRoles,
+            "Only administrators and agents can view tenant information.",
+            ct);
+        if (scope.IsFailure)
+            return Result<IReadOnlyList<TenantInfoDto>>.Failure(scope.Error);
+        var agentId = scope.Value;
 
         var today = DateTime.UtcNow.Date;
 
         var tenants = await dbContext.LeaseRecords.AsNoTracking()
             .Where(l => l.Status == TransactionStatus.Pending || l.Status == TransactionStatus.Active)
+            .Where(l => agentId == null || l.Property.AgentId == agentId)
             .OrderBy(l => l.LeaseEndDate)
             .Select(l => new TenantInfoDto
             {
@@ -722,7 +772,8 @@ public class TransactionService(
         foreach (var tenant in tenants)
         {
             tenant.DaysRemaining = (tenant.LeaseEndDate.Date - today).Days;
-            tenant.ReminderDue = tenant.DaysRemaining <= ReminderWindowDays;
+            tenant.ReminderDue =
+                tenant.DaysRemaining <= LeaseReminderPolicy.WindowDays(tenant.LeaseStartDate, tenant.LeaseEndDate);
         }
 
         return Result<IReadOnlyList<TenantInfoDto>>.Success(tenants);
@@ -731,11 +782,17 @@ public class TransactionService(
     public async Task<Result<IReadOnlyList<PurchaserInfoDto>>> GetPurchasersAsync(
         string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        if (!currentUserRoles.Contains(Roles.Admin))
-            return Result<IReadOnlyList<PurchaserInfoDto>>.Failure(
-                Error.Forbidden("transaction.forbidden", "Only administrators can view purchaser information."));
+        var scope = await ResolveScopeAsync(
+            currentUserId,
+            currentUserRoles,
+            "Only administrators and agents can view purchaser information.",
+            ct);
+        if (scope.IsFailure)
+            return Result<IReadOnlyList<PurchaserInfoDto>>.Failure(scope.Error);
+        var agentId = scope.Value;
 
         var purchasers = await dbContext.SaleRecords.AsNoTracking()
+            .Where(s => agentId == null || s.Property.AgentId == agentId)
             .OrderByDescending(s => s.SaleDate)
             .Select(s => new PurchaserInfoDto
             {
@@ -763,9 +820,13 @@ public class TransactionService(
     public async Task<Result<NotifyTenantResultDto>> NotifyTenantAsync(
         int leaseId, string currentUserId, IList<string> currentUserRoles, CancellationToken ct)
     {
-        if (!currentUserRoles.Contains(Roles.Admin))
-            return Result<NotifyTenantResultDto>.Failure(
-                Error.Forbidden("transaction.forbidden", "Only administrators can notify tenants."));
+        var scope = await ResolveScopeAsync(
+            currentUserId,
+            currentUserRoles,
+            "Only administrators and agents can notify tenants.",
+            ct);
+        if (scope.IsFailure)
+            return Result<NotifyTenantResultDto>.Failure(scope.Error);
 
         var lease = await dbContext.LeaseRecords
             .Include(l => l.Property)
@@ -774,6 +835,10 @@ public class TransactionService(
         if (lease is null)
             return Result<NotifyTenantResultDto>.Failure(
                 Error.NotFound("transaction.leasenotfound", $"No tenancy with id {leaseId} was found."));
+
+        if (!ScopeAllows(scope.Value, lease.Property))
+            return Result<NotifyTenantResultDto>.Failure(
+                Error.Forbidden("transaction.forbidden", "You can only remind the tenant of a property assigned to you."));
 
         if (lease.Status is not (TransactionStatus.Pending or TransactionStatus.Active))
             return Result<NotifyTenantResultDto>.Failure(
@@ -974,6 +1039,36 @@ public class TransactionService(
             Error.Unauthorized("transaction.unauthorized", "You are not authorized to record transactions."));
     }
 
+    /// <summary>
+    /// Resolves what a caller may read. An admin is unscoped (null); an agent is
+    /// scoped to the properties assigned to their registration. Any other role is
+    /// refused. Written once so the list, analytics, tenant and purchaser reads all
+    /// apply the same rule and cannot drift apart.
+    /// </summary>
+    private async Task<Result<int?>> ResolveScopeAsync(
+        string currentUserId, IList<string> currentUserRoles, string forbiddenMessage, CancellationToken ct)
+    {
+        if (currentUserRoles.Contains(Roles.Admin))
+            return Result<int?>.Success(null);
+
+        if (!currentUserRoles.Contains(Roles.Agent))
+            return Result<int?>.Failure(Error.Forbidden("transaction.forbidden", forbiddenMessage));
+
+        var agentId = await dbContext.Agents.AsNoTracking()
+            .Where(a => a.UserId == currentUserId)
+            .Select(a => (int?)a.Id)
+            .FirstOrDefaultAsync(ct);
+
+        if (agentId is null)
+            return Result<int?>.Failure(Error.Forbidden("transaction.forbidden", forbiddenMessage));
+
+        return Result<int?>.Success(agentId);
+    }
+
+    /// <summary>An unscoped caller (admin) sees everything; an agent only their own property.</summary>
+    private static bool ScopeAllows(int? agentId, Property property) =>
+        agentId is null || property.AgentId == agentId;
+
     private Task<bool> HasLiveLeaseAsync(int propertyId, CancellationToken ct) =>
         dbContext.LeaseRecords.AnyAsync(
             l => l.PropertyId == propertyId
@@ -1031,8 +1126,9 @@ public class TransactionService(
     // Projections
     // =========================
 
-    private IQueryable<TransactionDto> ProjectedSales() =>
+    private IQueryable<TransactionDto> ProjectedSales(int? agentId = null) =>
         from s in dbContext.SaleRecords.AsNoTracking()
+        where agentId == null || s.Property.AgentId == agentId
         select new TransactionDto
         {
             Id = s.Id,
@@ -1059,8 +1155,9 @@ public class TransactionService(
             Notes = s.Notes
         };
 
-    private IQueryable<TransactionDto> ProjectedLeases() =>
+    private IQueryable<TransactionDto> ProjectedLeases(int? agentId = null) =>
         from l in dbContext.LeaseRecords.AsNoTracking()
+        where agentId == null || l.Property.AgentId == agentId
         select new TransactionDto
         {
             Id = l.Id,

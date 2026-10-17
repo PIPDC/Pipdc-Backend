@@ -63,36 +63,36 @@ public class TransactionsController(ITransactionService transactionService) : Co
         return result.ToActionResult();
     }
 
-    /// <summary>Admin-only list across sales and tenancies.</summary>
+    /// <summary>Admin sees every record; an agent only those on their own properties.</summary>
     [HttpGet]
-    [Authorize(Roles = Roles.Admin)]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Agent}")]
     public async Task<IActionResult> GetAll([FromQuery] TransactionQueryParameters query, CancellationToken ct)
     {
         var result = await transactionService.GetAllAsync(query, CurrentUserId, CurrentUserRoles, ct);
         return result.ToActionResult();
     }
 
-    /// <summary>Admin-only aggregates that back the dashboard charts.</summary>
+    /// <summary>Aggregates that back the dashboard charts, scoped to the caller.</summary>
     [HttpGet("analytics")]
-    [Authorize(Roles = Roles.Admin)]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Agent}")]
     public async Task<IActionResult> GetAnalytics([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
     {
         var result = await transactionService.GetAnalyticsAsync(from, to, CurrentUserId, CurrentUserRoles, ct);
         return result.ToActionResult();
     }
 
-    /// <summary>Admin-only roster of tenants currently occupying a rented property.</summary>
+    /// <summary>Roster of tenants currently occupying a rented property, scoped to the caller.</summary>
     [HttpGet("tenants")]
-    [Authorize(Roles = Roles.Admin)]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Agent}")]
     public async Task<IActionResult> GetTenants(CancellationToken ct)
     {
         var result = await transactionService.GetTenantsAsync(CurrentUserId, CurrentUserRoles, ct);
         return result.ToActionResult();
     }
 
-    /// <summary>Admin-only roster of clients who purchased a property.</summary>
+    /// <summary>Roster of clients who purchased a property, scoped to the caller.</summary>
     [HttpGet("purchasers")]
-    [Authorize(Roles = Roles.Admin)]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Agent}")]
     public async Task<IActionResult> GetPurchasers(CancellationToken ct)
     {
         var result = await transactionService.GetPurchasersAsync(CurrentUserId, CurrentUserRoles, ct);
@@ -100,11 +100,12 @@ public class TransactionsController(ITransactionService transactionService) : Co
     }
 
     /// <summary>
-    /// Admin-only. Emails the tenant the time left on their lease. [Idempotent]
-    /// so a double-click replays the first response instead of mailing twice.
+    /// Emails the tenant the time left on their lease. Admins may notify any lease;
+    /// an agent only a lease on a property they handle. [Idempotent] so a
+    /// double-click replays the first response instead of mailing twice.
     /// </summary>
     [HttpPost("leases/{leaseId:int}/notify")]
-    [Authorize(Roles = Roles.Admin)]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Agent}")]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
     [Idempotent]
     public async Task<IActionResult> NotifyTenant(int leaseId, CancellationToken ct)
@@ -114,12 +115,12 @@ public class TransactionsController(ITransactionService transactionService) : Co
     }
 
     /// <summary>
-    /// Admin-only. Extends a live tenancy's end date and clears its rent reminder.
-    /// Not [Idempotent]: renewing twice to the same date is already a safe no-op,
-    /// so no replay key is needed.
+    /// Extends a live tenancy's end date and clears its rent reminder, for an admin
+    /// or the agent who handles the property. Not [Idempotent]: renewing twice to
+    /// the same date is already a safe no-op, so no replay key is needed.
     /// </summary>
     [HttpPost("leases/{leaseId:int}/renew")]
-    [Authorize(Roles = Roles.Admin)]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Agent}")]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
     public async Task<IActionResult> RenewLease(int leaseId, [FromBody] RenewLeaseRequest request, CancellationToken ct)
     {
@@ -128,13 +129,13 @@ public class TransactionsController(ITransactionService transactionService) : Co
     }
 
     /// <summary>
-    /// Admin-only. Ends a tenancy because the tenant has left and returns the
-    /// property to the market. This is the only supported way to free a rented
-    /// listing, which is why the property status cannot be edited to Available
-    /// while a live lease is on file.
+    /// Ends a tenancy because the tenant has left and returns the property to the
+    /// market, for an admin or the agent who handles the property. This is the only
+    /// supported way to free a rented listing, which is why the property status
+    /// cannot be edited to Available while a live lease is on file.
     /// </summary>
     [HttpPost("leases/{leaseId:int}/end")]
-    [Authorize(Roles = Roles.Admin)]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Agent}")]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
     public async Task<IActionResult> EndLease(int leaseId, CancellationToken ct)
     {
