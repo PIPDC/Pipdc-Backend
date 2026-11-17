@@ -146,7 +146,7 @@ public sealed class OpenRouterClient(
         var endpoint = $"{settings.BaseUrl.TrimEnd('/')}/chat/completions";
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
-        httpRequest.Headers.Add("HTTP-Referer", "https://pipdc.plateaustate.gov.ng");
+        httpRequest.Headers.Add("HTTP-Referer", "https://pipdc-frontend.onrender.com");
         httpRequest.Headers.Add("X-Title", "PIPDC Property Assistant");
         httpRequest.Content = JsonContent.Create(request, options: JsonOpts);
 

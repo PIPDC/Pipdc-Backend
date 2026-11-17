@@ -34,7 +34,7 @@ public sealed class GmailApiSettings
 
     /// <summary>
     /// Public-facing base URL of the frontend application (no trailing slash).
-    /// Used to build CTA links in notification emails, e.g. "https://pipdc.plateaustate.gov.ng".
+    /// Used to build CTA links in notification emails, e.g. "https://pipdc-frontend.onrender.com".
     /// </summary>
     public string FrontendBaseUrl { get; set; } = string.Empty;
 }

@@ -11,7 +11,7 @@ namespace PIPDC.ArchitectureTests;
 /// </summary>
 public sealed class FrontendUrlBuilderTests
 {
-    private const string Base = "https://pipdc.example.gov.ng";
+    private const string Base = "https://pipdc.example.com";
 
     private static FrontendUrlBuilder CreateBuilder(
         string? frontendBaseUrl = Base,

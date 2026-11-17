@@ -17,7 +17,7 @@ public sealed class FrontendOptions
 
     /// <summary>
     /// Absolute base URL with no trailing slash, for example
-    /// "https://pipdc.plateaustate.gov.ng". Left empty in source control; it is
+    /// "https://pipdc-frontend.onrender.com". Left empty in source control; it is
     /// supplied per environment.
     /// </summary>
     public string BaseUrl { get; set; } = string.Empty;
